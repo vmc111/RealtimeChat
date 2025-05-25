@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import type * as Types from '../types';
 import { useStore } from '../store';
+import { s } from 'framer-motion/client';
 
 interface UseAuthReturn {
   user: Types.User | null;
   loading: boolean;
   error: string | null;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetError: () => void;
 }
@@ -26,11 +27,11 @@ export const useAuth = (): UseAuthReturn => {
     setError(authStore.error);
   }, [authStore.error]);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
-      await authStore.signInWithGoogle();
+      await authStore.signIn(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in with Google');
       throw err;
@@ -44,7 +45,7 @@ export const useAuth = (): UseAuthReturn => {
     try {
       setLoading(true);
       setError(null);
-      await authStore.signOutUser();
+      await authStore.signOut();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign out');
       throw err;

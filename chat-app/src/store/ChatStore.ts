@@ -1,20 +1,5 @@
 import { makeAutoObservable, runInAction } from 'mobx';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  serverTimestamp, 
-  orderBy, 
-  doc, 
-  updateDoc, 
-  arrayUnion,
-  type DocumentData,
-  type QueryDocumentSnapshot,
-  type QuerySnapshot
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { api, setupWebSocket } from '../services/api';
 import type * as Types from '../types';
 
 class ChatStore {
@@ -24,17 +9,67 @@ class ChatStore {
   currentUser: Types.User | null = null;
   loading = false;
   error: string | null = null;
+  private ws: WebSocket | null = null;
+  
+  // Expose WebSocket status
+  get isWebSocketConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
 
   constructor() {
     makeAutoObservable(this, {}, { autoBind: true });
   }
 
+  // Initialize WebSocket connection
+  async initWebSocket() {
+    if (this.ws) {
+      // If WebSocket is already connected, return
+      if (this.ws.readyState === WebSocket.OPEN) return;
+      // If WebSocket is in a closing or closed state, clean it up
+      if (this.ws.readyState === WebSocket.CLOSING || this.ws.readyState === WebSocket.CLOSED) {
+        this.ws = null;
+      }
+    }
+
+    try {
+      this.ws = await setupWebSocket((message: any) => {
+        // Handle incoming WebSocket messages
+        if (message.roomId === this.currentRoom?.id) {
+          runInAction(() => {
+            this.messages.push(message);
+          });
+        }
+      });
+      
+      this.ws.onclose = () => {
+        runInAction(() => {
+          this.ws = null;
+        });
+      };
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize WebSocket:', error);
+      this.ws = null;
+      return false;
+    }
+  }
+  
+  // Close WebSocket connection
+  closeWebSocket() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+
   // Set current room
-  setCurrentRoom = (room: Types.Room) => {
+  setCurrentRoom = async (room: Types.Room) => {
     this.currentRoom = room;
     // When room changes, load its messages
     if (room) {
-      this.loadMessages(room.id);
+      await this.loadMessages(room.id);
+      this.initWebSocket();
     } else {
       this.messages = [];
     }
@@ -47,201 +82,93 @@ class ChatStore {
     });
     
     if (user) {
-      this.loadRooms(user.id);
+      this.loadRooms();
     }
   }
 
   // Load messages for a room
-  loadMessages = (roomId: string) => {
+  loadMessages = async (roomId: string) => {
     this.loading = true;
     this.error = null;
-
+    
     try {
-      const messagesRef = collection(db, 'messages');
-      const q = query(
-        messagesRef,
-        where('roomId', '==', roomId),
-        orderBy('timestamp', 'asc')
-      );
-
-      // Subscribe to real-time updates
-      const unsubscribe = onSnapshot(q, 
-        (snapshot: QuerySnapshot<DocumentData>) => {
-          const messages = snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              text: data.text || '',
-              userId: data.userId || '',
-              userDisplayName: data.userDisplayName || '',
-              userPhotoURL: data.userPhotoURL || null,
-              roomId: data.roomId || '',
-              timestamp: data.timestamp?.toDate() || new Date()
-            } as Types.Message;
-          }) as Types.Message[];
-
-          runInAction(() => {
-            this.messages = messages;
-            this.loading = false;
-          });
-        }, 
-        (error: Error) => {
-          runInAction(() => {
-            this.error = error.message;
-            this.loading = false;
-          });
-        }
-      );
-
-      return unsubscribe;
+      const messages = await api.getMessages(roomId);
+      runInAction(() => {
+        this.messages = messages;
+        this.loading = false;
+      });
     } catch (error) {
       runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to load messages';
         this.loading = false;
       });
-      return () => {}; // Return empty cleanup function
     }
   };
 
-  // Send a new message
-  sendMessage = async (text: string, user: Types.User, roomId: string) => {
-    if (!text.trim()) return;
-
+  // Send a message
+  sendMessage = async (content: string) => {
+    if (!this.currentRoom || !this.currentUser) {
+      throw new Error('No room selected or user not authenticated');
+    }
+    
     try {
-      const messagesRef = collection(db, 'messages');
-      await addDoc(messagesRef, {
-        text,
-        userId: user.id,
-        userDisplayName: user.displayName,
-        userPhotoURL: user.photoURL || null,
-        timestamp: serverTimestamp(),
-        roomId
+      const message = await api.sendMessage(this.currentRoom.id, content);
+      runInAction(() => {
+        this.messages.push(message);
       });
+      return message;
     } catch (error) {
       runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to send message';
       });
+      throw error;
     }
   };
 
-  // Load available rooms
-  loadRooms = (userId?: string) => {
+  // Load rooms for the current user
+  loadRooms = async () => {
     this.loading = true;
     this.error = null;
-
+    
     try {
-      const roomsRef = collection(db, 'rooms');
-      const q = userId 
-        ? query(roomsRef, where('members', 'array-contains', userId), orderBy('createdAt', 'desc'))
-        : query(roomsRef, orderBy('createdAt', 'desc'));
-
-      // Subscribe to real-time updates for rooms
-      const unsubscribe = onSnapshot(q, 
-        (snapshot: QuerySnapshot<DocumentData>) => {
-          const rooms = snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              name: data.name || 'Unnamed Room',
-              createdAt: data.createdAt?.toDate() || new Date(),
-              createdBy: data.createdBy || '',
-              isPrivate: !!data.isPrivate,
-              members: Array.isArray(data.members) ? data.members : []
-            } as Types.Room;
-          }) as Types.Room[];
-
-          runInAction(() => {
-            this.rooms = rooms;
-            this.loading = false;
-          });
-        }, 
-        (error: Error) => {
-          runInAction(() => {
-            this.error = error.message;
-            this.loading = false;
-          });
-        }
-      );
-
-      return unsubscribe;
+      const rooms = await api.getRooms();
+      runInAction(() => {
+        this.rooms = rooms;
+        this.loading = false;
+      });
     } catch (error) {
       runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to load rooms';
         this.loading = false;
       });
-      return () => {}; // Return empty cleanup function
-    }
-  };
-
-  // Create a new room
-  async createRoom(name: string, isPrivate: boolean = false) {
-    if (!this.currentUser) {
-      throw new Error('User not authenticated. Please sign in to create a room.');
-    }
-    
-    const trimmedName = name.trim();
-    
-    // Validate room name
-    if (!trimmedName) {
-      throw new Error('Room name cannot be empty');
-    }
-    
-    if (trimmedName.length > 50) {
-      throw new Error('Room name must be 50 characters or less');
-    }
-    
-    try {
-      const roomData = {
-        name: trimmedName,
-        displayName: trimmedName, // For case-insensitive search
-        createdAt: serverTimestamp(),
-        createdBy: this.currentUser.id,
-        createdByDisplayName: this.currentUser.displayName || 'Anonymous',
-        isPrivate,
-        members: [this.currentUser.id],
-        memberCount: 1,
-        updatedAt: serverTimestamp()
-      };
-
-      const docRef = await addDoc(collection(db, 'rooms'), roomData);
-      
-      // Create a room with the server-generated ID
-      const newRoom: Types.Room = {
-        id: docRef.id,
-        name: trimmedName,
-        createdAt: new Date(),
-        createdBy: this.currentUser.id,
-        isPrivate,
-        members: [this.currentUser.id],
-        memberCount: 1
-      };
-      
-      // Add the room to the local state
-      runInAction(() => {
-        this.rooms = [newRoom, ...this.rooms];
-        this.currentRoom = newRoom;
-      });
-      
-      return newRoom;
-    } catch (error) {
-      runInAction(() => {
-        this.error = error instanceof Error ? error.message : 'Failed to create room';
-      });
-      return null;
     }
   };
 
   // Join a room
-  joinRoom = async (roomId: string, userId: string) => {
+  joinRoom = async (roomId: string) => {
+    if (!this.currentUser) {
+      throw new Error('User not authenticated');
+    }
+    
+    this.loading = true;
+    this.error = null;
+    
     try {
-      const roomRef = doc(db, 'rooms', roomId);
-      await updateDoc(roomRef, {
-        members: arrayUnion(userId)
+      // In a real app, you might have an endpoint to handle room joining
+      // For now, we'll just load the room
+      const room = await api.getRoom(roomId);
+      
+      runInAction(() => {
+        this.currentRoom = room;
+        this.loading = false;
       });
+      
+      // Removed unused code
       return true;
     } catch (error) {
       runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to join room';
+        this.loading = false;
       });
       return false;
     }

@@ -1,13 +1,5 @@
 import { makeAutoObservable, runInAction } from 'mobx';
-import { 
-  signOut as firebaseSignOut, 
-  onAuthStateChanged, 
-  type User as FirebaseUser,
-  GoogleAuthProvider,
-  signInWithPopup
-} from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { api, isAuthenticated } from '../services/api';
 import type * as Types from '../types';
 
 class AuthStore {
@@ -17,35 +9,33 @@ class AuthStore {
 
   constructor() {
     makeAutoObservable(this, {}, { autoBind: true });
-    this.initializeAuthListener();
+    this.initializeAuth();
   }
 
-  // Initialize auth state listener
-  private initializeAuthListener = () => {
+  // Initialize auth state
+  private initializeAuth = async () => {
     this.setStatus('loading');
     
-    return onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // User is signed in
-        const userData = await this.getUserData(firebaseUser);
+    if (isAuthenticated()) {
+      try {
+        const userData = await this.getCurrentUser();
         runInAction(() => {
           this.user = userData;
           this.status = 'authenticated';
           this.error = null;
         });
-      } else {
-        // User is signed out
+        
+      } catch (error) {
         runInAction(() => {
-          this.user = null;
           this.status = 'unauthenticated';
+          this.error = error instanceof Error ? error.message : 'Failed to authenticate';
         });
       }
-    }, (error) => {
+    } else {
       runInAction(() => {
-        this.error = error.message;
         this.status = 'unauthenticated';
       });
-    });
+    }
   };
 
   // Set user data
@@ -55,120 +45,130 @@ class AuthStore {
     this.error = null;
   }
 
-  // Get user data from Firebase User
-  private async getUserData(firebaseUser: FirebaseUser): Promise<Types.User> {
-    const userDocRef = doc(db, 'users', firebaseUser.uid);
-    
-    // Get user data from Firestore
-    const userDoc = await getDoc(userDocRef);
-    
-    if (userDoc.exists()) {
-      const data = userDoc.data();
+  // Get current user data
+  async getCurrentUser(): Promise<Types.User> {
+    try {
+      const userData = await api.getCurrentUser();
       return {
-        id: firebaseUser.uid,
-        displayName: data.displayName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Anonymous',
-        email: data.email || firebaseUser.email || '',
-        photoURL: data.photoURL || firebaseUser.photoURL || undefined,
-        isOnline: data.isOnline !== undefined ? data.isOnline : true,
-        lastSeen: data.lastSeen?.toDate() || new Date()
+        id: userData.id,
+        username: userData.username || userData.email.split('@')[0],
+        displayName: userData.displayName || userData.username || userData.email.split('@')[0],
+        email: userData.email,
+        avatar: userData.avatar,
+        isOnline: true,
+        lastSeen: new Date(),
       };
+    } catch (error) {
+      throw new Error('Failed to load user data');
     }
-    
-    // Return basic auth info if no Firestore document exists
-    return {
-      id: firebaseUser.uid,
-      displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Anonymous',
-      email: firebaseUser.email || '',
-      photoURL: firebaseUser.photoURL || undefined,
-      isOnline: true,
-      lastSeen: new Date()
-    };
-  };
+  }
 
   // Update auth status
   private setStatus = (status: Types.AuthStatus) => {
     this.status = status;
   };
 
-
-
-  // Sign in with Google
-  signInWithGoogle = async (): Promise<void> => {
+  // Sign up with email and password
+  signUp = async (email: string, password: string, username: string): Promise<void> => {
     this.setStatus('loading');
     this.error = null;
 
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      const { user, token } = await api.signUp(email, password, username);
       
-      // Check if user already exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      // Store the token
+      localStorage.setItem('token', token);
       
-      if (!userDoc.exists()) {
-        // Create new user document if it doesn't exist
-        const userData: Types.User = {
-          id: user.uid,
-          displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
-          email: user.email || '',
-          photoURL: user.photoURL || undefined,
-          isOnline: true,
-          lastSeen: new Date()
-        };
-
-        await setDoc(doc(db, 'users', user.uid), {
-          ...userData,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-
-        runInAction(() => {
-          this.user = userData;
-          this.status = 'authenticated';
-        });
-      } else {
-        // Update existing user's online status
-        const userData = await this.getUserData(user);
-        runInAction(() => {
-          this.user = userData;
-          this.status = 'authenticated';
-        });
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to sign in with Google';
       runInAction(() => {
-        this.error = errorMessage;
+        this.user = {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName || user.username,
+          email: user.email,
+          avatar: user.avatar,
+          isOnline: true,
+          lastSeen: new Date(),
+        };
+        this.status = 'authenticated';
+        this.error = null;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this.error = error instanceof Error ? error.message : 'Failed to sign up';
         this.status = 'unauthenticated';
       });
-      throw new Error(errorMessage);
+      throw error;
+    }
+  };
+
+  // Sign in with email and password
+  signIn = async (email: string, password: string): Promise<void> => {
+    this.setStatus('loading');
+    this.error = null;
+
+    try {
+      const { user, token } = await api.login(email, password);
+
+      // Store the token
+      localStorage.setItem('token', token);
+      
+      runInAction(() => {
+        this.user = {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName || user.username,
+          email: user.email,
+          avatar: user.avatar,
+          isOnline: true,
+          lastSeen: new Date(),
+        };
+        this.status = 'authenticated';
+        this.error = null;
+      });
+    } catch (error) {
+      runInAction(() => {
+        this.error = error instanceof Error ? error.message : 'Failed to sign in';
+        this.status = 'unauthenticated';
+      });
+      throw error;
     }
   };
 
   // Sign out
-  signOutUser = async (): Promise<void> => {
+  signOut = async (): Promise<void> => {
     try {
-      // Update user's online status before signing out
-      if (this.user) {
-        const userDocRef = doc(db, 'users', this.user.id);
-        await setDoc(userDocRef, {
-          isOnline: false,
-          lastSeen: serverTimestamp()
-        }, { merge: true });
-      }
-
-      await firebaseSignOut(auth);
-      
+      await api.logout();
       runInAction(() => {
         this.user = null;
         this.status = 'unauthenticated';
         this.error = null;
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to sign out';
+      console.error('Failed to sign out:', error);
+      throw error;
+    }
+  };
+
+  // Update user profile
+  updateProfile = async (updates: { username?: string; displayName?: string; avatar?: string }): Promise<void> => {
+    if (!this.user) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const updatedUser = await api.updateUserProfile(updates);
+      
       runInAction(() => {
-        this.error = errorMessage;
+        if (this.user) {
+          this.user = {
+            ...this.user,
+            ...updatedUser,
+          };
+        }
       });
-      throw new Error(errorMessage);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
     }
   };
 

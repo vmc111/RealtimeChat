@@ -1,8 +1,10 @@
 export interface User {
   id: string;
+  username: string;
   displayName: string;
   email: string;
-  photoURL?: string;
+  avatar?: string;
+  photoURL?: string; // Kept for backward compatibility
   isOnline: boolean;
   lastSeen?: Date;
 }
