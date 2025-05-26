@@ -1,149 +1,91 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { useChat } from '../hooks/useChat';
-import MessageList from '../components/chat/MessageList';
-import ChatInput from '../components/chat/ChatInput';
-import ChatSidebar from '../components/chat/ChatSidebar';
+import { ActionButton } from '@adobe/react-spectrum';
+import { observer } from 'mobx-react-lite';
+import { useEffect } from 'react';
+import { FaArrowLeft } from 'react-icons/fa';
+import { useNavigate, useParams } from 'react-router-dom';
 import ChatHeader from '../components/chat/ChatHeader';
-import WelcomeScreen from '../components/chat/WelcomeScreen';
-import CreateRoomModal from '../components/chat/CreateRoomModal';
-import { FaBars, FaTimes } from 'react-icons/fa';
-import { AnimatePresence } from 'framer-motion';
+import ChatInput from '../components/chat/ChatInput';
+import MessageList from '../components/chat/MessageList';
+import { Spinner } from '../components/ui/Spinner';
+import { useStore } from '../store';
 
 const ChatPage = () => {
-  const { user, signOut } = useAuth();
+  const { roomId } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
+  const { chatStore, authStore } = useStore();
   const {
-    messages = [],
-    rooms = [],
+    messages,
     currentRoom,
     sendMessage,
-    createRoom,
-    setCurrentRoom,
-  } = useChat();
+    joinRoom,
+  } = chatStore;
 
-  const [isCreateRoomModalOpen, setIsCreateRoomModalOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // Toggle mobile menu
-  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
-
-  // Close mobile menu when clicking outside
+  // Join the room when component mounts or roomId changes
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (isMobileMenuOpen && !target.closest('.sidebar-container') && !target.closest('.mobile-menu-button')) {
-        setIsMobileMenuOpen(false);
-      }
-    };
+    chatStore.setCurrentUser(authStore.user);
+    if (roomId && authStore.user) {
+      joinRoom(roomId).catch(error => {
+        console.error('Error joining room:', error);
+        // Redirect back to chat rooms if there's an error joining the room
+        navigate('/chats');
+      });
+    }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isMobileMenuOpen]);
+    return () => {
+      chatStore.setCurrentUser(null);
+    }
+  }, [roomId]);
 
   const handleSendMessage = (message: string) => {
-    if (!currentRoom || !user) return;
-    sendMessage(message, currentRoom.id);
+    if (!currentRoom || !authStore.user) return;
+    sendMessage(message);
   };
 
-  const handleCreateRoom = async (name: string, isPrivate: boolean) => {
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    try {
-      const newRoom = await createRoom(name, isPrivate);
-      if (newRoom) {
-        setCurrentRoom(newRoom);
-        setIsCreateRoomModalOpen(false);
-        setIsMobileMenuOpen(false);
-      }
-    } catch (error) {
-      console.error('Error creating room:', error);
-      throw error; // Re-throw to be caught by the CreateRoomModal
-    }
+  const handleBackToRooms = () => {
+    navigate('/chats');
   };
 
-  if (!user) {
-    return null; // Should be handled by ProtectedRoute
+  if (!authStore.user) {
+    throw new Error('User not found');
+  }
+    
+
+
+  if (!currentRoom ) {
+    return (
+      <Spinner className='w-full h-screen' size="lg" />
+    );
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Mobile menu button */}
-      <button
-        onClick={toggleMobileMenu}
-        className="mobile-menu-button md:hidden fixed top-4 left-4 z-30 p-2 rounded-md bg-white shadow-md"
-      >
-        {isMobileMenuOpen ? <FaTimes className="h-5 w-5" /> : <FaBars className="h-5 w-5" />}
-      </button>
-
-      {/* Sidebar */}
-      <AnimatePresence>
-        {(isMobileMenuOpen || window.innerWidth >= 768) && (
-          <ChatSidebar
-            rooms={rooms}
-            currentRoom={currentRoom}
-            user={{
-              displayName: user.displayName,
-              email: user.email,
-              photoURL: user.photoURL || null,
-            }}
-            onSelectRoom={room => {
-              setCurrentRoom(room);
-              if (window.innerWidth < 768) {
-                setIsMobileMenuOpen(false);
-              }
-            }}
-            onCreateRoom={() => {
-              setIsCreateRoomModalOpen(true);
-              if (window.innerWidth < 768) {
-                setIsMobileMenuOpen(false);
-              }
-            }}
-            onSignOut={signOut}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Overlay for mobile */}
-      {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-10 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+    <div className="flex flex-col grow bg-gray-100">
+      {/* Header with back button */}
+      <header className='flex items-center w-full bg-white shadow-sm'>
+        <div className="max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-16">
+            <ActionButton
+              UNSAFE_className="!cursor-pointer !border-none !outline-none"
+              onPress={handleBackToRooms}
+              >
+              <FaArrowLeft className="h-5 w-5 mr-2" />
+              Back to Rooms
+            </ActionButton>
+          </div>
+        </div>
+        <ChatHeader room={currentRoom} />
+      </header>
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {currentRoom ? (
-          <>
-            <ChatHeader room={currentRoom} />
-            <div className="flex-1 overflow-y-auto p-4">
-              <MessageList messages={messages} currentUserId={user.id} />
-            </div>
-            <div className="border-t border-gray-200 bg-white p-4">
-              <ChatInput onSend={handleSendMessage} />
-            </div>
-          </>
-        ) : (
-          <WelcomeScreen
-            hasRooms={rooms.length > 0}
-            onCreateRoom={() => {
-              setIsCreateRoomModalOpen(true);
-              if (window.innerWidth < 768) {
-                setIsMobileMenuOpen(false);
-              }
-            }}
-          />
-        )}
+        <div className="flex-1 overflow-y-auto p-4">
+          <MessageList messages={messages} currentUserId={authStore.user?.id} roomId={roomId as string} />
+        </div>
+        <div className="border-t border-gray-200 bg-white p-4">
+          <ChatInput onSend={handleSendMessage} />
+        </div>
       </div>
-
-      <CreateRoomModal
-        isOpen={isCreateRoomModalOpen}
-        onClose={() => setIsCreateRoomModalOpen(false)}
-        onCreateRoom={handleCreateRoom}
-      />
     </div>
   );
 };
 
-export default ChatPage;
+export default observer(ChatPage);

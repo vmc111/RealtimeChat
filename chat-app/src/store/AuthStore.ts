@@ -1,70 +1,39 @@
-import { makeAutoObservable, runInAction } from 'mobx';
-import { api, isAuthenticated } from '../services/api';
+import { makeAutoObservable } from 'mobx';
+import { api } from '../services/api';
 import type * as Types from '../types';
 
 class AuthStore {
   user: Types.User | null = null;
+  token: string | null = null;
   status: Types.AuthStatus = 'loading';
   error: string | null = null;
 
   constructor() {
     makeAutoObservable(this, {}, { autoBind: true });
-    this.initializeAuth();
   }
 
-  // Initialize auth state
-  private initializeAuth = async () => {
-    this.setStatus('loading');
-    
-    if (isAuthenticated()) {
-      try {
-        const userData = await this.getCurrentUser();
-        runInAction(() => {
-          this.user = userData;
-          this.status = 'authenticated';
-          this.error = null;
-        });
-        
-      } catch (error) {
-        runInAction(() => {
-          this.status = 'unauthenticated';
-          this.error = error instanceof Error ? error.message : 'Failed to authenticate';
-        });
-      }
+  // Set token in store and localStorage
+  setToken(token: string) {
+    this.token = token;
+    if (token) {
+      localStorage.setItem('token', token);
     } else {
-      runInAction(() => {
-        this.status = 'unauthenticated';
-      });
+      localStorage.removeItem('token');
     }
-  };
+  }
+
 
   // Set user data
   setUser(user: Types.User | null) {
-    this.user = user;
+    this.user = user ? {
+      ...user,
+    } : null;
     this.status = user ? 'authenticated' : 'unauthenticated';
     this.error = null;
   }
 
-  // Get current user data
-  async getCurrentUser(): Promise<Types.User> {
-    try {
-      const userData = await api.getCurrentUser();
-      return {
-        id: userData.id,
-        username: userData.username || userData.email.split('@')[0],
-        displayName: userData.displayName || userData.username || userData.email.split('@')[0],
-        email: userData.email,
-        avatar: userData.avatar,
-        isOnline: true,
-        lastSeen: new Date(),
-      };
-    } catch (error) {
-      throw new Error('Failed to load user data');
-    }
-  }
-
-  // Update auth status
-  private setStatus = (status: Types.AuthStatus) => {
+  // Set loading/error states
+  setStatus(status: Types.AuthStatus) {
     this.status = status;
   };
 
@@ -74,29 +43,12 @@ class AuthStore {
     this.error = null;
 
     try {
-      const { user, token } = await api.signUp(email, password, username);
-      
-      // Store the token
-      localStorage.setItem('token', token);
-      
-      runInAction(() => {
-        this.user = {
-          id: user.id,
-          username: user.username,
-          displayName: user.displayName || user.username,
-          email: user.email,
-          avatar: user.avatar,
-          isOnline: true,
-          lastSeen: new Date(),
-        };
-        this.status = 'authenticated';
-        this.error = null;
-      });
+      await api.signUp(email, password, username);
+      this.status = 'unauthenticated';
+      this.error = null;
     } catch (error) {
-      runInAction(() => {
-        this.error = error instanceof Error ? error.message : 'Failed to sign up';
-        this.status = 'unauthenticated';
-      });
+      this.error = error instanceof Error ? error.message : 'Failed to sign up';
+      this.status = 'unauthenticated';
       throw error;
     }
   };
@@ -111,42 +63,34 @@ class AuthStore {
 
       // Store the token
       localStorage.setItem('token', token);
-      
-      runInAction(() => {
-        this.user = {
-          id: user.id,
-          username: user.username,
-          displayName: user.displayName || user.username,
-          email: user.email,
-          avatar: user.avatar,
-          isOnline: true,
-          lastSeen: new Date(),
-        };
-        this.status = 'authenticated';
-        this.error = null;
-      });
+      localStorage.setItem('userId', user.id);
+
+
+      this.user = {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName || user.username,
+        email: user.email,
+        avatar: user.avatar,
+        lastSeen: new Date(),
+      };
+      this.status = 'authenticated';
+      this.error = null;
     } catch (error) {
-      runInAction(() => {
-        this.error = error instanceof Error ? error.message : 'Failed to sign in';
-        this.status = 'unauthenticated';
-      });
+      this.error = error instanceof Error ? error.message : 'Failed to sign in';
+      this.status = 'unauthenticated';
       throw error;
     }
   };
 
   // Sign out
-  signOut = async (): Promise<void> => {
-    try {
-      await api.logout();
-      runInAction(() => {
-        this.user = null;
-        this.status = 'unauthenticated';
-        this.error = null;
-      });
-    } catch (error) {
-      console.error('Failed to sign out:', error);
-      throw error;
-    }
+  signOut = (): void => {
+    this.user = null
+    this.token = null;
+    this.status = 'unauthenticated';
+    this.error = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
   };
 
   // Update user profile
@@ -157,15 +101,13 @@ class AuthStore {
 
     try {
       const updatedUser = await api.updateUserProfile(updates);
-      
-      runInAction(() => {
-        if (this.user) {
-          this.user = {
-            ...this.user,
-            ...updatedUser,
-          };
-        }
-      });
+
+      if (this.user) {
+        this.user = {
+          ...this.user,
+          ...updatedUser,
+        };
+      }
     } catch (error) {
       console.error('Failed to update profile:', error);
       throw error;

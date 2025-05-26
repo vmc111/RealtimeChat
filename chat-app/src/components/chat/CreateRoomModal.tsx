@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite';
 interface CreateRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateRoom: (name: string, isPrivate: boolean) => Promise<void>;
+  onCreateRoom: (name: string, isPrivate: boolean) => Promise<{ id: string; name: string; isPrivate: boolean } | null>;
 }
 
 const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps) => {
@@ -33,14 +33,30 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
     try {
       setIsSubmitting(true);
       setError('');
-      await onCreateRoom(trimmedName, isPrivate);
-      // Don't call handleClose here - let the parent component handle the success case
+      
+      // Call the parent's onCreateRoom function
+      const newRoom = await onCreateRoom(trimmedName, isPrivate);
+      
+      if (newRoom) {
+        // Reset form on success
+        setRoomName('');
+        setIsPrivate(false);
+        // Close the modal after a short delay to show success state
+        setTimeout(() => {
+          onClose();
+        }, 500);
+      }
     } catch (err) {
       console.error('Error in CreateRoomModal:', err);
       const error = err as Error;
-      setError(error.message.includes('permission') 
-        ? 'You do not have permission to create rooms' 
-        : error.message || 'Failed to create room. Please try again.');
+      setError(
+        error.message.includes('permission') 
+          ? 'You do not have permission to create rooms' 
+          : error.message.includes('network')
+          ? 'Network error. Please check your connection.'
+          : 'Failed to create room. Please try again.'
+      );
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -54,7 +70,7 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+      <div className="z-full flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         {/* Background overlay */}
         <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={handleClose}>
           <div className="absolute inset-0 bg-gray-500 opacity-75"></div>

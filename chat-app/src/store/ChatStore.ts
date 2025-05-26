@@ -1,4 +1,4 @@
-import { makeAutoObservable, runInAction } from 'mobx';
+import { makeAutoObservable } from 'mobx';
 import { api, setupWebSocket } from '../services/api';
 import type * as Types from '../types';
 
@@ -35,16 +35,12 @@ class ChatStore {
       this.ws = await setupWebSocket((message: any) => {
         // Handle incoming WebSocket messages
         if (message.roomId === this.currentRoom?.id) {
-          runInAction(() => {
             this.messages.push(message);
-          });
         }
       });
       
       this.ws.onclose = () => {
-        runInAction(() => {
           this.ws = null;
-        });
       };
       
       return true;
@@ -77,13 +73,7 @@ class ChatStore {
 
   // Set current user
   setCurrentUser(user: Types.User | null) {
-    runInAction(() => {
-      this.currentUser = user;
-    });
-    
-    if (user) {
-      this.loadRooms();
-    }
+    this.currentUser = user;
   }
 
   // Load messages for a room
@@ -92,16 +82,12 @@ class ChatStore {
     this.error = null;
     
     try {
-      const messages = await api.getMessages(roomId);
-      runInAction(() => {
-        this.messages = messages;
-        this.loading = false;
-      });
+      const responseData = await api.getMessages(roomId);
+      this.messages = responseData.messages ?? [];
+      this.loading = false;
     } catch (error) {
-      runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to load messages';
         this.loading = false;
-      });
     }
   };
 
@@ -113,14 +99,10 @@ class ChatStore {
     
     try {
       const message = await api.sendMessage(this.currentRoom.id, content);
-      runInAction(() => {
-        this.messages.push(message);
-      });
+      this.messages.push(message);
       return message;
     } catch (error) {
-      runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to send message';
-      });
       throw error;
     }
   };
@@ -132,15 +114,11 @@ class ChatStore {
     
     try {
       const rooms = await api.getRooms();
-      runInAction(() => {
-        this.rooms = rooms;
-        this.loading = false;
-      });
+      this.rooms = rooms ?? [];
+      this.loading = false;
     } catch (error) {
-      runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to load rooms';
         this.loading = false;
-      });
     }
   };
 
@@ -158,21 +136,57 @@ class ChatStore {
       // For now, we'll just load the room
       const room = await api.getRoom(roomId);
       
-      runInAction(() => {
-        this.currentRoom = room;
-        this.loading = false;
-      });
+      this.currentRoom = room;
+      this.loading = false;
       
       // Removed unused code
       return true;
     } catch (error) {
-      runInAction(() => {
         this.error = error instanceof Error ? error.message : 'Failed to join room';
         this.loading = false;
-      });
       return false;
     }
   };
+
+  // Create a new chat room
+  createRoom = async (name: string, isPrivate: boolean = false): Promise<Types.Room> => {
+    if (!this.currentUser) {
+      throw new Error('User not authenticated');
+    }
+    
+    this.loading = true;
+    this.error = null;
+    
+    try {
+      const room = await api.createRoom(
+        name, 
+        isPrivate ? 'private' : 'public',
+        `A ${isPrivate ? 'private' : 'public'} chat room`
+      );
+      
+      // Add the current user as a member of the new room
+      const updatedRoom: Types.Room = {
+        ...room,
+        createdBy: this.currentUser.id,
+        createdByDisplayName: this.currentUser.displayName,
+        members: [this.currentUser.id],
+      };
+
+        this.rooms.push(updatedRoom);
+        this.loading = false;
+      
+      
+      return updatedRoom;
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : 'Failed to create room';
+      this.loading = false;
+      throw error;
+    }
+  };
+
+  clearRooms() {
+   this.rooms = [];
+  }
 
   static create() {
     return new ChatStore();

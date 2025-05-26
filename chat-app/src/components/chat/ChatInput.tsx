@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import {Button} from '@adobe/react-spectrum'
+
 import { observer } from 'mobx-react-lite';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 
@@ -44,9 +46,10 @@ const ChatInput = ({
     }
   };
 
+  const isDisabled = !message.trim() || disabled;
+
   return (
-    <form onSubmit={handleSubmit} className="border-t border-gray-200 px-4 pt-4 mb-2 sm:mb-0">
-      <div className="relative flex">
+    <form onSubmit={handleSubmit} className="shadow-lg px-4 p-4 mb-2 sm:mb-0 flex items-center">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -62,23 +65,19 @@ const ChatInput = ({
             minHeight: '44px',
           }}
         />
-        <div className="absolute right-0 bottom-0 flex justify-between py-2 pl-3 pr-2">
+        <div className="flex justify-between py-2 pl-3 pr-2 ml-[16px]">
           <div className="flex-shrink-0">
-            <button
-              type="submit"
-              disabled={!message.trim() || disabled}
-              className={`inline-flex items-center justify-center rounded-full h-10 w-10 transition-colors duration-200 ${
-                !message.trim() || disabled
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-              }`}
+            <Button
+                type="submit"
+                variant="accent"
+                isDisabled={isDisabled}
+                UNSAFE_className={isDisabled ? "!cursor-not-allowed" : "!cursor-pointer"}
             >
-              <PaperAirplaneIcon className="h-5 w-5" aria-hidden="true" />
+              <PaperAirplaneIcon className="h-5 w-5"/>
               <span className="sr-only">Send message</span>
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
     </form>
   );
 };

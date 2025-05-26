@@ -1,4 +1,5 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+import type * as Types from '../types';
 
 // Get the JWT token from localStorage
 function getToken(): string | null {
@@ -13,6 +14,12 @@ function setToken(token: string): void {
 // Remove the JWT token from localStorage
 function removeToken(): void {
   localStorage.removeItem('token');
+}
+
+
+// Remove the user ID from localStorage
+function removeUserId(): void {
+  localStorage.removeItem('userId');
 }
 
 // Get the authorization header with JWT token
@@ -40,7 +47,7 @@ interface AuthResponse {
 
 export const api = {
   // Auth endpoints
-  async signUp(email: string, password: string, username: string): Promise<AuthResponse> {
+  async signUp(email: string, password: string, username: string): Promise<void> {
     const response = await fetch(`${API_URL}/auth/signup`, {
       method: 'POST',
       headers: {
@@ -54,21 +61,6 @@ export const api = {
     if (!response.ok) {
       throw new Error(data.error || 'Failed to sign up');
     }
-
-    if (data.token) {
-      setToken(data.token);
-    }
-    
-    return {
-      user: {
-        id: data.user.id,
-        username: data.user.username,
-        email: data.user.email,
-        displayName: data.user.displayName,
-        avatar: data.user.avatar,
-      },
-      token: data.token,
-    };
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {
@@ -85,10 +77,6 @@ export const api = {
     if (!response.ok) {
       throw new Error(data.error || 'Failed to log in');
     }
-
-    if (data.token) {
-      setToken(data.token);
-    }
     
     return {
       user: {
@@ -102,10 +90,6 @@ export const api = {
     };
   },
 
-  logout() {
-    removeToken();
-  },
-
   // User endpoints
   async getCurrentUser() {
     try {
@@ -117,6 +101,7 @@ export const api = {
       if (!response.ok) {
         if (response.status === 401) {
           removeToken();
+          removeUserId();
         }
         throw new Error(data.message || 'Failed to fetch user data');
       }
@@ -132,6 +117,31 @@ export const api = {
       console.error('Error fetching current user:', error);
       throw error;
     }
+  },
+
+  async getUser(userId: string) {
+    const response = await fetch(`${API_URL}/users/${userId}`, {
+      method: 'GET',
+      headers: getAuthHeader(),
+    });
+
+    if (!response.ok) {
+      // If token is invalid, clear it
+      if (response.status === 401) {
+        removeToken();
+      }
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch current user');
+    }
+
+    const data = await response.json();
+    return {
+      id: data.id,
+      username: data.username,
+      email: data.email,
+      displayName: data.displayName,
+      avatar: data.avatar,
+    };
   },
 
   async updateUserProfile(updates: { username?: string; displayName?: string; avatar?: string }) {
@@ -165,19 +175,37 @@ export const api = {
     }
   },
   // Room endpoints
-  async createRoom(name: string, description?: string) {
+  async createRoom(name: string, visibility: 'public' | 'private' = 'public', description?: string): Promise<Types.Room> {
     const headers = await getAuthHeader();
     const response = await fetch(`${API_URL}/rooms`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ 
+        name, 
+        visibility,
+        description 
+      }),
     });
     
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error('Failed to create room');
+      throw new Error(data.message || 'Failed to create room');
     }
     
-    return response.json();
+    return {
+      id: data.id,
+      name: data.name,
+      isPrivate: data.visibility === 'private',
+      description: data.description,
+      createdAt: new Date(data.createdAt),
+      updatedAt: new Date(data.updatedAt),
+      createdBy: data.createdBy || 'unknown',
+      createdByDisplayName: data.createdByDisplayName,
+      members: data.members || [],
+      memberCount: data.memberCount || 0,
+      displayName: data.displayName || data.name
+    } as Types.Room;
   },
 
   async getRooms() {

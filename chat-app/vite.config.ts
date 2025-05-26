@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: true, // Enable WebSocket proxy
-        },
+        }
       },
     },
     define: {

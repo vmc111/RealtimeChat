@@ -1,27 +1,46 @@
 import { format } from 'date-fns';
 import { observer } from 'mobx-react-lite';
 import type { Message } from '../../types';
+import { useStore } from '../../store';
+import { useEffect } from 'react';
+import { Spinner } from '../ui/Spinner';
 
 interface MessageListProps {
   messages: Message[];
   currentUserId: string;
+  roomId: string;
   className?: string;
 }
 
-const MessageList = ({ messages, currentUserId, className = '' }: MessageListProps) => {
+const MessageList = ({ messages, currentUserId, roomId, className = '' }: MessageListProps) => {
+  const {chatStore} = useStore();
+
+  useEffect(() => {
+    chatStore.loadMessages(roomId);
+  }, [roomId]);
+
+  if (chatStore.loading) {
+    return (
+        <Spinner className="grow w-full h-full" size="lg" />
+    );
+  }
+
   if (messages.length === 0) {
     return (
-      <div className={`flex-1 flex items-center justify-center text-gray-500 ${className}`}>
+      <div className={`flex-1 h-full flex items-center justify-center text-gray-500 ${className}`}>
         <p>No messages yet. Send a message to start the conversation!</p>
       </div>
     );
   }
 
+  console.log('messages',messages);
+
   return (
     <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${className}`}>
       {messages.map((message) => {
+        console.log('message',message);
         const isCurrentUser = message.userId === currentUserId;
-        const messageDate = message.timestamp?.getDate() ? message.timestamp.getDate() : new Date(message.timestamp);
+        const messageDate = new Date(message.createdAt);
         
         return (
           <div
@@ -41,7 +60,7 @@ const MessageList = ({ messages, currentUserId, className = '' }: MessageListPro
                     {message.userDisplayName}
                   </div>
                 )}
-                <div className="text-sm break-words">{message.text}</div>
+                <div className="text-sm break-words">{message.content}</div>
                 <div
                   className={`text-xs mt-1 ${
                     isCurrentUser ? 'text-indigo-200' : 'text-gray-500'

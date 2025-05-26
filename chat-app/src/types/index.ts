@@ -1,21 +1,20 @@
 export interface User {
   id: string;
   username: string;
-  displayName: string;
+  displayName?: string;
   email: string;
   avatar?: string;
   photoURL?: string; // Kept for backward compatibility
-  isOnline: boolean;
   lastSeen?: Date;
 }
 
 export interface Message {
   id: string;
-  text: string;
+  content: string;
   userId: string;
   userDisplayName: string;
   userPhotoURL?: string;
-  timestamp: Date;
+  createdAt: string;
   roomId: string;
 }
 
@@ -28,7 +27,6 @@ export interface Room {
   createdByDisplayName?: string;
   isPrivate: boolean;
   members: string[];
-  memberCount: number;
   updatedAt?: Date;
   displayName?: string; // For case-insensitive search
 }
