@@ -12,10 +12,14 @@ export interface Message {
   id: string;
   content: string;
   userId: string;
-  userDisplayName: string;
-  userPhotoURL?: string;
   createdAt: string;
   roomId: string;
+}
+
+export interface RoomMemberType {
+  id: string;
+  displayName: string;
+  photoURL?: string;
 }
 
 export interface Room {
@@ -26,7 +30,7 @@ export interface Room {
   createdBy: string;
   createdByDisplayName?: string;
   isPrivate: boolean;
-  members: string[];
+  members: RoomMemberType[];
   updatedAt?: Date;
   displayName?: string; // For case-insensitive search
 }

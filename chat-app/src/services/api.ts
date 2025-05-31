@@ -248,7 +248,7 @@ export const api = {
     
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Failed to add member to room');
+      throw new Error(error.error || 'Failed to add member to room');
     }
     
     return response.json();
@@ -398,7 +398,6 @@ export const setupWebSocket = (onMessage: (message: any) => void): WebSocket => 
 
   // Connection opened
   socket.addEventListener('open', () => {
-    console.log('WebSocket connected');
     
     // Send authentication message with JWT token
     socket.send(JSON.stringify({
@@ -424,7 +423,7 @@ export const setupWebSocket = (onMessage: (message: any) => void): WebSocket => 
 
   // Handle connection close
   socket.addEventListener('close', (event) => {
-    console.log('WebSocket disconnected:', event.code, event.reason);
+    console.info('WebSocket disconnected:', event.code, event.reason);
   });
 
   return socket;

@@ -155,6 +155,7 @@ func (c *MessageController) SendMessage(ctx *gin.Context) {
 
 	// Create message
 	message := models.Message{
+		ID:        primitive.NewObjectID(),
 		RoomID:    primitive.ObjectID{},
 		UserID:    userID.(string),
 		Content:   req.Content,

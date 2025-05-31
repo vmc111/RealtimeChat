@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
-import {Button} from '@adobe/react-spectrum'
+import { Button } from '@adobe/react-spectrum';
+import { useEffect, useRef, useState } from 'react';
 
-import { observer } from 'mobx-react-lite';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import cn from 'classnames';
+import { observer } from 'mobx-react-lite';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -49,35 +50,40 @@ const ChatInput = ({
   const isDisabled = !message.trim() || disabled;
 
   return (
-    <form onSubmit={handleSubmit} className="shadow-lg px-4 p-4 mb-2 sm:mb-0 flex items-center">
+    <form onSubmit={handleSubmit} className="shadow-lg px-4 py-2 mb-2 sm:mb-0 flex items-center border-t border-gray-200 bg-white">
         <textarea
           ref={textareaRef}
           rows={1}
-          className="flex-1 border-0 focus:ring-0 focus:outline-none focus:placeholder-gray-400 text-gray-900 placeholder-gray-500 resize-none bg-transparent"
+          className="flex-1 p-4 border border-gray-300 focus:ring-0 focus:outline-none focus:placeholder-gray-400 text-gray-900 placeholder-gray-500 resize-none bg-transparent"
           placeholder={placeholder}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           style={{
-            maxHeight: '150px',
+            maxHeight:'450px',
+            height: 'auto',
+            flexGrow: '1',
+            resize:'none',
             overflowY: 'auto',
             minHeight: '44px',
           }}
         />
-        <div className="flex justify-between py-2 pl-3 pr-2 ml-[16px]">
-          <div className="flex-shrink-0">
             <Button
                 type="submit"
-                variant="accent"
+                variant="primary"
+                style="outline"
+                staticColor='black'
                 isDisabled={isDisabled}
-                UNSAFE_className={isDisabled ? "!cursor-not-allowed" : "!cursor-pointer"}
+                UNSAFE_className={cn(
+                  'w-[40px] h-[40px] shrink-0 p-3 rounded-[6px] !border-none !outline-none',
+                  isDisabled ? "!cursor-not-allowed" : "!cursor-pointer",
+                  '!hover:bg-blue-50 !hover:text-white'
+                )}
             >
               <PaperAirplaneIcon className="h-5 w-5"/>
               <span className="sr-only">Send message</span>
             </Button>
-          </div>
-        </div>
     </form>
   );
 };

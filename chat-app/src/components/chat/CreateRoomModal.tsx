@@ -123,7 +123,7 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
                       <input
                         type="text"
                         id="roomName"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        className="px-6 py-3 overflow-auto mt-1 block w-full rounded-md border-primary-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                         value={roomName}
                         onChange={(e) => setRoomName(e.target.value)}
                         placeholder="Enter room name"

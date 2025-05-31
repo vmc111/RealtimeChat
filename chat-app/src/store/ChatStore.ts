@@ -1,11 +1,13 @@
 import { makeAutoObservable } from 'mobx';
 import { api, setupWebSocket } from '../services/api';
 import type * as Types from '../types';
+import RoomModel from './models/RoomModel';
+import Collection from './Collections';
 
 class ChatStore {
   messages: Types.Message[] = [];
-  rooms: Types.Room[] = [];
-  currentRoom: Types.Room | null = null;
+  private _rooms!: Collection<RoomModel>
+  currentRoom: RoomModel | null = null;
   currentUser: Types.User | null = null;
   loading = false;
   error: string | null = null;
@@ -17,6 +19,7 @@ class ChatStore {
   }
 
   constructor() {
+    this._rooms = new Collection<RoomModel>();
     makeAutoObservable(this, {}, { autoBind: true });
   }
 
@@ -60,7 +63,7 @@ class ChatStore {
   }
 
   // Set current room
-  setCurrentRoom = async (room: Types.Room) => {
+  setCurrentRoom = async (room: RoomModel) => {
     this.currentRoom = room;
     // When room changes, load its messages
     if (room) {
@@ -77,17 +80,22 @@ class ChatStore {
   }
 
   // Load messages for a room
-  loadMessages = async (roomId: string) => {
+  async loadMessages(roomId: string) {
     this.loading = true;
     this.error = null;
     
     try {
-      const responseData = await api.getMessages(roomId);
-      this.messages = responseData.messages ?? [];
+      const response = await api.getMessages(roomId);
+      // Ensure messages have proper user info
+      this.messages = (response.messages || []).map((message: any) => ({
+        ...message,
+        userDisplayName: message.userDisplayName || 'Unknown User',
+        userPhotoURL: message.userPhotoURL || undefined,
+      }));
+    } catch (error: any) {
+      this.error = error instanceof Error ? error.message : 'Failed to load messages';
+    } finally {
       this.loading = false;
-    } catch (error) {
-        this.error = error instanceof Error ? error.message : 'Failed to load messages';
-        this.loading = false;
     }
   };
 
@@ -108,19 +116,28 @@ class ChatStore {
   };
 
   // Load rooms for the current user
-  loadRooms = async () => {
+  async loadRooms() {
     this.loading = true;
     this.error = null;
     
     try {
-      const rooms = await api.getRooms();
-      this.rooms = rooms ?? [];
+      const response = await api.getRooms();
+      // Transform the response to ensure proper Member type
+      const rooms = (response || []).map((room: any) => ({
+        ...room,
+        members: (room.members || []).map((member: any) => ({
+          id: member.id || member._id || '',
+          displayName: member.displayName || 'Unknown User',
+          photoURL: member.photoURL || undefined,
+        })),
+      }));
+      this._rooms.setMany(rooms.map((room: Types.Room) => new RoomModel(room)));
+    } catch (error: any) {
+      this.error = error instanceof Error ? error.message : 'Failed to load rooms';
+    } finally {
       this.loading = false;
-    } catch (error) {
-        this.error = error instanceof Error ? error.message : 'Failed to load rooms';
-        this.loading = false;
     }
-  };
+  }
 
   // Join a room
   joinRoom = async (roomId: string) => {
@@ -136,15 +153,41 @@ class ChatStore {
       // For now, we'll just load the room
       const room = await api.getRoom(roomId);
       
-      this.currentRoom = room;
+      this.currentRoom = new RoomModel(room);
       this.loading = false;
       
-      // Removed unused code
       return true;
     } catch (error) {
         this.error = error instanceof Error ? error.message : 'Failed to join room';
         this.loading = false;
       return false;
+    }
+  };
+
+  // Set loading state
+  setLoading = (isLoading: boolean) => {
+    this.loading = isLoading;
+  };
+
+  // Set error message
+  setError = (error: string | null) => {
+    this.error = error;
+  };
+
+
+  // Add a member to a room
+  addRoomMember = async (roomId: string, userId: string, onSuccess?: (members: Types.RoomMemberType[]) => void): Promise<void> => {
+    try {
+      this.setLoading(true);
+      // Call the API to add the member
+      const response = await api.addMemberToRoom(roomId, userId);
+      onSuccess?.(response.members);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add member to room';
+      this.setError(errorMessage);
+      throw error;
+    } finally {
+      this.setLoading(false);
     }
   };
 
@@ -165,14 +208,17 @@ class ChatStore {
       );
       
       // Add the current user as a member of the new room
-      const updatedRoom: Types.Room = {
+      const updatedRoom =new RoomModel({
         ...room,
         createdBy: this.currentUser.id,
         createdByDisplayName: this.currentUser.displayName,
-        members: [this.currentUser.id],
-      };
+        members: [{
+          id: this.currentUser.id,
+          displayName: this.currentUser.displayName ?? '',
+        }],
+      });
 
-        this.rooms.push(updatedRoom);
+        this._rooms.set(updatedRoom);
         this.loading = false;
       
       
@@ -184,8 +230,23 @@ class ChatStore {
     }
   };
 
+  clearMessages() {
+    this.messages = [];
+  }
+
   clearRooms() {
-   this.rooms = [];
+   this._rooms.clear();
+  }
+
+  setRoomMembers = (roomId: string, members: Types.RoomMemberType[]) => {
+    const room = this._rooms.get(roomId);
+    if(room){
+      room.setMembers(members)
+    }
+  }
+
+  get rooms(){
+    return this._rooms.items;
   }
 
   static create() {

@@ -7,6 +7,7 @@ import CreateRoomController from '../controllers/CreateRoomController';
 
 import { useStore } from '../store';
 import Header from '../components/ui/Header';
+import { Button } from '@adobe/react-spectrum';
 
 const ChatRoomsPage = () => {
   const { chatStore, authStore } = useStore();
@@ -19,7 +20,6 @@ const ChatRoomsPage = () => {
     chatStore.setCurrentUser(authStore.user);
 
     return () => {
-      console.log('ChatRoomsPage useEffect cleanup');
       chatStore.clearRooms();
       chatStore.setCurrentUser(null);
     };
@@ -30,27 +30,22 @@ const ChatRoomsPage = () => {
   };
 
   return (
-    <div className="flex flex-col items-center h-screen w-full bg-gray-50">
+    <div className="flex flex-col items-center h-screen w-full bg-gray-50 overflow-hidden">
       <Header className='w-full' />
-      <div className="flex-1 flex flex-col items-center justify-center w-full p-4">
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md p-6">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat Rooms</h1>
-          <p className="text-gray-600">
-            {rooms.length === 0
-              ? 'No chat rooms available. Create one to get started!'
-              : 'Join an existing chat room or create a new one.'}
-          </p>
+      <div className="w-full my-auto flex flex-col grow bg-white rounded-lg shadow-md p-6 overflow-y-auto">
+        <div className="flex justify-end">
+          <CreateRoomController createRoom={createRoom} />
         </div>
 
         {rooms.length ? (
-          <div className="space-y-4 mb-8">
+          <div className="flex items-center justify-center w-full overflow-y-auto">
+            <div className="flex items-center justify-start flex-wrap gap-4 flex-wrap my-6 mx-auto">
             {rooms.map((room) => (
               <motion.div
                 key={room.id}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="p-4 border border-gray-200 rounded-lg cursor-pointer transition-colors hover:border-indigo-300"
+                className="p-6 border border-gray-200 rounded-lg cursor-pointer transition-colors hover:border-indigo-300"
                 onClick={() => handleRoomClick(room.id)}
               >
                 <h3 className="font-medium text-gray-900">{room.name}</h3>
@@ -59,6 +54,7 @@ const ChatRoomsPage = () => {
                 </p>
               </motion.div>
             ))}
+            </div>
           </div>
         ) : (
           <div className="text-center py-12">
@@ -82,13 +78,8 @@ const ChatRoomsPage = () => {
             <p className="text-gray-500 mb-6">Be the first to create a chat room!</p>
           </div>
         )}
-
-        <div className="flex justify-center">
-          <CreateRoomController createRoom={createRoom} />
-        </div>
       </div>
       </div>
-    </div>
   );
 };
 

@@ -14,20 +14,35 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type RoomService struct {
-	collection *mongo.Collection
+// UserService defines the interface for user-related operations
+type UserService interface {
+	GetUserByID(id string) (*models.User, error)
 }
 
-func NewRoomService(db *mongo.Database) *RoomService {
+type RoomService struct {
+	collection *mongo.Collection
+	userSvc   UserService
+}
+
+func NewRoomService(db *mongo.Database, userSvc UserService) *RoomService {
 	return &RoomService{
 		collection: db.Collection("rooms"),
+		userSvc:   userSvc,
 	}
 }
 
 func (s *RoomService) CreateRoom(room *models.Room) (*models.Room, error) {
 	room.CreatedAt = time.Now()
 	room.UpdatedAt = time.Now()
-	room.Members = append(room.Members, room.CreatedBy) // Add creator as member
+	// Add creator as member
+	creator, err := s.userSvc.GetUserByID(room.CreatedBy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get creator: %v", err)
+	}
+	room.Members = append(room.Members, models.Member{
+		ID:          creator.ID.Hex(),
+		DisplayName: creator.Username,
+	})
 
 	result, err := s.collection.InsertOne(context.Background(), room)
 	if err != nil {
@@ -40,15 +55,40 @@ func (s *RoomService) CreateRoom(room *models.Room) (*models.Room, error) {
 
 func (s *RoomService) GetRooms(userID string) ([]*models.Room, error) {
 	ctx := context.Background()
-	cursor, err := s.collection.Find(ctx, bson.M{"members": userID})
+	
+	// First find all rooms where the user is a member
+	cursor, err := s.collection.Find(ctx, bson.M{
+		"members": bson.M{
+			"$elemMatch": bson.M{
+				"id": userID,
+			},
+		},
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find rooms: %v", err)
 	}
 	defer cursor.Close(ctx)
 
 	var rooms []*models.Room
 	if err := cursor.All(ctx, &rooms); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode rooms: %v", err)
+	}
+
+	// For each room, ensure all members have their details
+	for _, room := range rooms {
+		var updatedMembers []models.Member
+		for _, member := range room.Members {
+			user, err := s.userSvc.GetUserByID(member.ID)
+			if err != nil {
+				// Skip if user not found, but log the error
+				continue
+			}
+			updatedMembers = append(updatedMembers, models.Member{
+				ID:          user.ID.Hex(),
+				DisplayName: user.Username,
+			})
+		}
+		room.Members = updatedMembers
 	}
 
 	return rooms, nil
@@ -58,13 +98,17 @@ func (s *RoomService) GetRoom(roomID string, userID string) (*models.Room, error
 	ctx := context.Background()
 	objID, err := primitive.ObjectIDFromHex(roomID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid room ID")
 	}
 
 	var room models.Room
 	err = s.collection.FindOne(ctx, bson.M{
-		"_id":     objID,
-		"members": userID,
+		"_id": objID,
+		"members": bson.M{
+			"$elemMatch": bson.M{
+				"id": userID,
+			},
+		},
 	}).Decode(&room)
 
 	if err != nil {
@@ -128,43 +172,49 @@ func (s *RoomService) DeleteRoom(roomID string, userID string) error {
 }
 
 func (s *RoomService) AddMember(roomID string, userID string, memberID string) (*models.Room, error) {
-	ctx := context.Background()
 	objID, err := primitive.ObjectIDFromHex(roomID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid room ID")
 	}
 
 	// Check if user is a member of the room
-	var room models.Room
-	err = s.collection.FindOne(ctx, bson.M{
-		"_id":     objID,
-		"members": userID,
-	}).Decode(&room)
-
-
+	room, err := s.GetRoom(roomID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("room not found or you don't have permission to add members")
+		return nil, fmt.Errorf("unauthorized or room not found")
 	}
 
-	// Add new member if not already a member
-	update := bson.M{
-		"$addToSet": bson.M{"members": memberID},
-		"$set":      bson.M{"updatedAt": time.Now()},
+	// Get member details
+	user, err := s.userSvc.GetUserByID(memberID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get member details: %v", err)
 	}
 
-	result := s.collection.FindOneAndUpdate(
-		ctx,
+	// Check if user is already a member
+	for _, member := range room.Members {
+		if member.ID == memberID {
+			return room, nil // Already a member
+		}
+	}
+
+	// Add new member with details
+	_, err = s.collection.UpdateOne(
+		context.Background(),
 		bson.M{"_id": objID},
-		update,
-		options.FindOneAndUpdate().SetReturnDocument(options.After),
+		bson.M{
+			"$addToSet": bson.M{
+				"members": models.Member{
+					ID:          user.ID.Hex(),
+					DisplayName: user.Username,
+				},
+			},
+			"$set": bson.M{"updatedAt": time.Now()},
+		},
 	)
-
-
-	if err := result.Decode(&room); err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("failed to add member: %v", err)
 	}
 
-	return &room, nil
+	return s.GetRoom(roomID, userID)
 }
 
 func (s *RoomService) RemoveMember(roomID string, userID string, memberID string) (*models.Room, error) {
@@ -181,14 +231,13 @@ func (s *RoomService) RemoveMember(roomID string, userID string, memberID string
 		"createdBy": userID,
 	}).Decode(&room)
 
-
 	if err != nil {
 		return nil, fmt.Errorf("room not found or you don't have permission to remove members")
 	}
 
 	// Remove member
 	update := bson.M{
-		"$pull": bson.M{"members": memberID},
+		"$pull": bson.M{"members": bson.M{"id": memberID}},
 		"$set":  bson.M{"updatedAt": time.Now()},
 	}
 
@@ -206,20 +255,11 @@ func (s *RoomService) RemoveMember(roomID string, userID string, memberID string
 	return &room, nil
 }
 
-func (s *RoomService) GetRoomMembers(roomID string, userID string) ([]string, error) {
-	ctx := context.Background()
-	objID, err := primitive.ObjectIDFromHex(roomID)
+func (s *RoomService) GetRoomMembers(roomID string, userID string) ([]models.Member, error) {
+	room, err := s.GetRoom(roomID, userID)
 	if err != nil {
 		return nil, err
 	}
-
-	var room models.Room
-	err = s.collection.FindOne(ctx, bson.M{
-		"_id":     objID,
-		"members": userID, // User must be a member of the room
-	}).Decode(&room)
-
-
 	if err != nil {
 		return nil, fmt.Errorf("room not found or access denied")
 	}

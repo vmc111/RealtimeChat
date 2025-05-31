@@ -4,6 +4,7 @@ package controllers
 import (
 	"chat-backend/internal/models"
 	"chat-backend/internal/services"
+	"log"
 	"net/http"
 	"time"
 
@@ -53,7 +54,7 @@ func (c *RoomController) CreateRoom(ctx *gin.Context) {
 		Description: req.Description,
 		IsPrivate:   req.IsPrivate,
 		CreatedBy:   userID.(string),
-		Members:     []string{},
+		Members:     []models.Member{},
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -70,6 +71,12 @@ func (c *RoomController) CreateRoom(ctx *gin.Context) {
 // GetRooms returns all rooms the current user is a member of
 func (c *RoomController) GetRooms(ctx *gin.Context) {
 	userID, exists := ctx.Get("userID")
+	log.Println(userID)
+	if userID == "" {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	log.Println(exists)
 	if !exists {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
@@ -77,9 +84,11 @@ func (c *RoomController) GetRooms(ctx *gin.Context) {
 
 	rooms, err := c.roomService.GetRooms(userID.(string))
 	if err != nil {
+		log.Println(err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rooms: " + err.Error()})
 		return
 	}
+	log.Println(rooms)
 
 	if rooms == nil {
 		rooms = []*models.Room{} // Return empty array instead of null
@@ -312,7 +321,7 @@ func (c *RoomController) GetRoomMembers(ctx *gin.Context) {
 	}
 
 	if members == nil {
-		members = []string{} // Return empty array instead of null
+		members = []models.Member{} // Return empty array instead of null
 	}
 
 	ctx.JSON(http.StatusOK, members)

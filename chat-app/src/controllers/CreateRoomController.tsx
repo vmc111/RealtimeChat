@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import CreateRoomModal from '../components/chat/CreateRoomModal';
 import type { Room } from '../types';
+import { PlusIcon } from '@heroicons/react/24/outline';
 
 interface CreateRoomControllerProps {
     className?: string;
@@ -45,8 +46,9 @@ const CreateRoomController = (props: CreateRoomControllerProps): React.ReactElem
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setIsCreateRoomModalOpen(true)}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="flex items-center gap-2 !bg-transparent border-none !outline-none hover:bg-primary-100 p-2 rounded-lg text-primary-600"
             >
+              <PlusIcon className="w-5 h-5" />
                 Create Chat Room
             </motion.button>
             <CreateRoomModal

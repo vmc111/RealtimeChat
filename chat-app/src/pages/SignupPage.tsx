@@ -34,7 +34,7 @@ const SignupPage = () => {
     
     try {
       await authStore.signUp(email, password, username);
-      navigate(from, { replace: true });
+      navigate('/login')
     } catch (err) {
       setError(authStore.error || 'Failed to create account');
     } finally {

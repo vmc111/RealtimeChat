@@ -100,7 +100,8 @@ func main() {
 	}
 
 	// Initialize services
-	roomService := services.NewRoomService(db)
+	userService := services.NewUserService(usersCollection)
+	roomService := services.NewRoomService(db, userService)
 	messageService := services.NewMessageService(db)
 
 	// Initialize handlers and middleware

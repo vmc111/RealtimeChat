@@ -1,3 +1,4 @@
+import { defaultTheme, Provider } from '@adobe/react-spectrum';
 import { observer } from 'mobx-react-lite';
 import { Toaster } from 'react-hot-toast';
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
@@ -96,9 +97,11 @@ const AppContent = observer(() => {
 
 const App = () => {
   return (
-    <StoreProvider>
-      <AppContent />
-    </StoreProvider>
+     <Provider theme={defaultTheme} UNSAFE_className='w-full h-screen overflow-hidden flex'>
+        <StoreProvider>
+          <AppContent />
+        </StoreProvider>
+     </Provider>
   );
 };
 
