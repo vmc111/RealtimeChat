@@ -1,0 +1,15 @@
+{
+  "name": "realtime-chat-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "chat-app",
+    "chat-backend"
+  ],
+  "scripts": {
+    "dev:frontend": "cd chat-app && npm run dev",
+    "dev:backend": "cd chat-backend && npm run dev",
+    "build": "cd chat-app && npm run build",
+    "start": "cd chat-app && npm run start"
+  }
+}
