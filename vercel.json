@@ -5,7 +5,7 @@
       "src": "chat-app/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "distDir": "chat-app/dist"
       }
     }
   ],
@@ -22,8 +22,5 @@
       "src": "^/(?!api/).*$",
       "dest": "/index.html"
     }
-  ],
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
   ]
 }
