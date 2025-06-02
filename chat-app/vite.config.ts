@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
+    base: '/',
     plugins: [react()],
     server: {
       proxy: {
@@ -18,6 +19,11 @@ export default defineConfig(({ mode }) => {
           ws: true, // Enable WebSocket proxy
         }
       },
+    },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      sourcemap: mode !== 'production',
     },
     define: {
       // Expose env variables to the client
