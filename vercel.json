@@ -5,22 +5,21 @@
       "src": "chat-app/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist",
-        "cleanDistDir": true
+        "distDir": "dist"
       }
     }
   ],
   "routes": [
     {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
       "src": "/assets/(.*)",
       "dest": "/assets/$1"
     },
     {
-      "src": "/(.*)",
+      "src": "/(.*)\\.(jpg|jpeg|png|gif|ico|svg|css|js|json|txt|woff|woff2|ttf|eot)$",
+      "dest": "/$1"
+    },
+    {
+      "src": "^/(?!api/).*$",
       "dest": "/index.html"
     }
   ]
