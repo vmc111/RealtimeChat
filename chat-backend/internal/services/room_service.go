@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"chat-backend/internal/models"
@@ -22,12 +23,14 @@ type UserService interface {
 type RoomService struct {
 	collection *mongo.Collection
 	userSvc   UserService
+	wsCtrl    models.WSController
 }
 
-func NewRoomService(db *mongo.Database, userSvc UserService) *RoomService {
+func NewRoomService(db *mongo.Database, userSvc UserService, wsCtrl models.WSController) *RoomService {
 	return &RoomService{
 		collection: db.Collection("rooms"),
 		userSvc:   userSvc,
+		wsCtrl:    wsCtrl,
 	}
 }
 
@@ -168,98 +171,169 @@ func (s *RoomService) DeleteRoom(roomID string, userID string) error {
 		return fmt.Errorf("room not found or you don't have permission to delete it")
 	}
 
+	if s.wsCtrl != nil {
+		go func() {
+			if err := s.wsCtrl.NotifyRoomUpdate(roomID, map[string]interface{}{
+				"deleted": true,
+			}); err != nil {
+				fmt.Printf("Failed to notify room members: %v", err)
+			}
+		}()
+	}
+
 	return nil
 }
 
 func (s *RoomService) AddMember(roomID string, userID string, memberID string) (*models.Room, error) {
+	// Convert string ID to ObjectID
 	objID, err := primitive.ObjectIDFromHex(roomID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid room ID")
 	}
 
-	// Check if user is a member of the room
-	room, err := s.GetRoom(roomID, userID)
-	if err != nil {
-		return nil, fmt.Errorf("unauthorized or room not found")
-	}
-
-	// Get member details
+	// Check if the user exists
 	user, err := s.userSvc.GetUserByID(memberID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get member details: %v", err)
+		return nil, fmt.Errorf("user not found")
+	}
+
+	// Check if the requester is a member of the room
+	room, err := s.GetRoom(roomID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("room not found or access denied")
 	}
 
 	// Check if user is already a member
-	for _, member := range room.Members {
-		if member.ID == memberID {
-			return room, nil // Already a member
+	for _, m := range room.Members {
+		if m.ID == memberID {
+			return nil, fmt.Errorf("user is already a member of the room")
 		}
 	}
 
-	// Add new member with details
+	// Create member with current time as JoinedAt
+	member := models.Member{
+		ID:          user.ID.Hex(),
+		DisplayName: user.Username,
+		PhotoURL:    user.PhotoURL,
+		JoinedAt:    time.Now(),
+	}
+
+
+	// Prepare the update to add the new member
+	update := bson.M{
+		"$push": bson.M{
+			"members": bson.M{
+				"id":          member.ID,
+				"displayName": member.DisplayName,
+				"photoURL":    member.PhotoURL,
+				"joinedAt":    member.JoinedAt,
+			},
+		},
+		"$set": bson.M{
+			"updatedAt": time.Now(),
+		},
+	}
+
+	_, err = s.collection.UpdateByID(context.Background(), objID, update)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add member: %v", err)
+	}
+
+	// Get the updated room to return
+	updatedRoom, err := s.GetRoom(roomID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Notify room members about the new member
+	if s.wsCtrl != nil {
+		go func() {
+			if err := s.wsCtrl.NotifyMemberChange(roomID, memberID, "ADDED", map[string]interface{}{
+				"id":          member.ID,
+				"displayName": member.DisplayName,
+				"photoURL":    member.PhotoURL,
+				"joinedAt":    member.JoinedAt,
+			}); err != nil {
+				log.Printf("Failed to notify room members: %v", err)
+			}
+		}()
+	}
+
+	return updatedRoom, nil
+}
+
+// RemoveMember removes a member from a room
+func (s *RoomService) RemoveMember(roomID string, userID string, memberID string) (*models.Room, error) {
+	// Convert string ID to ObjectID
+	objID, err := primitive.ObjectIDFromHex(roomID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid room ID")
+	}
+
+	// Get the room first to check permissions and get member details
+	room, err := s.GetRoom(roomID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("room not found or access denied")
+	}
+
+	// Only room creator can remove members
+	if room.CreatedBy != userID {
+		return nil, fmt.Errorf("only room creator can remove members")
+	}
+
+	// Check if the member exists in the room and get their details
+	var memberInfo *models.Member
+	for i, m := range room.Members {
+		if m.ID == memberID {
+			memberInfo = &room.Members[i]
+			break
+		}
+	}
+
+	if memberInfo == nil {
+		return nil, fmt.Errorf("user is not a member of this room")
+	}
+
+	// Remove member from the room
 	_, err = s.collection.UpdateOne(
 		context.Background(),
 		bson.M{"_id": objID},
 		bson.M{
-			"$addToSet": bson.M{
-				"members": models.Member{
-					ID:          user.ID.Hex(),
-					DisplayName: user.Username,
-				},
+			"$pull": bson.M{
+				"members": bson.M{"id": memberID},
 			},
 			"$set": bson.M{"updatedAt": time.Now()},
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add member: %v", err)
-	}
-
-	return s.GetRoom(roomID, userID)
-}
-
-func (s *RoomService) RemoveMember(roomID string, userID string, memberID string) (*models.Room, error) {
-	ctx := context.Background()
-	objID, err := primitive.ObjectIDFromHex(roomID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Only room creator can remove members
-	var room models.Room
-	err = s.collection.FindOne(ctx, bson.M{
-		"_id":       objID,
-		"createdBy": userID,
-	}).Decode(&room)
-
-	if err != nil {
-		return nil, fmt.Errorf("room not found or you don't have permission to remove members")
-	}
-
-	// Remove member
-	update := bson.M{
-		"$pull": bson.M{"members": bson.M{"id": memberID}},
-		"$set":  bson.M{"updatedAt": time.Now()},
-	}
-
-	result := s.collection.FindOneAndUpdate(
-		ctx,
-		bson.M{"_id": objID},
-		update,
-		options.FindOneAndUpdate().SetReturnDocument(options.After),
-	)
-
-	if err := result.Decode(&room); err != nil {
 		return nil, fmt.Errorf("failed to remove member: %v", err)
 	}
 
-	return &room, nil
-}
-
-func (s *RoomService) GetRoomMembers(roomID string, userID string) ([]models.Member, error) {
-	room, err := s.GetRoom(roomID, userID)
+	// Get the updated room
+	updatedRoom, err := s.GetRoom(roomID, userID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Notify room members about the member removal
+	if s.wsCtrl != nil {
+		go func() {
+			if err := s.wsCtrl.NotifyMemberChange(roomID, memberID, "REMOVED", map[string]interface{}{
+				"id":          memberInfo.ID,
+				"displayName": memberInfo.DisplayName,
+				"photoURL":    memberInfo.PhotoURL,
+			}); err != nil {
+				log.Printf("Failed to notify room members: %v", err)
+			}
+		}()
+	}
+
+	return updatedRoom, nil
+}
+
+// GetRoomMembers returns all members of a room
+func (s *RoomService) GetRoomMembers(roomID string, userID string) ([]models.Member, error) {
+	room, err := s.GetRoom(roomID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("room not found or access denied")
 	}

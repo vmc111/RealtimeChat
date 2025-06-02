@@ -377,54 +377,175 @@ export const api = {
   },
 };
 
-// Helper function to check if user is authenticated
 export const isAuthenticated = (): boolean => {
   return !!getToken();
 };
 
-// WebSocket setup
-export const setupWebSocket = (onMessage: (message: any) => void): WebSocket => {
+// WebSocket message types
+type WebSocketMessage = {
+  type: string;
+  payload?: any;
+  roomId?: string;
+  error?: string;
+};
+
+// WebSocket setup with enhanced error handling and authentication
+export const setupWebSocket = (onMessage: (message: WebSocketMessage) => void): WebSocket => {
   const token = getToken();
   if (!token) {
     throw new Error('User not authenticated');
   }
 
-  // Get the WebSocket URL based on the current environment
+  // Get the WebSocket URL with the token as a query parameter
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
   
-  // Create WebSocket connection with JWT token for authentication
+  console.log('Creating WebSocket connection to:', wsUrl);
+  
+  // Create WebSocket connection
   const socket = new WebSocket(wsUrl);
-
+  
+  // Authentication state
+  let isAuthenticated = false;
+  let authTimeout: NodeJS.Timeout | null = null;
+  const AUTH_TIMEOUT = 5000; // 5 seconds for auth to complete
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const RECONNECT_DELAY = 3000; // 3 seconds
+  
   // Connection opened
-  socket.addEventListener('open', () => {
+  const onOpen = () => {
+    console.log('WebSocket connection established, waiting for authentication...');
+    reconnectAttempts = 0; // Reset reconnect attempts on successful connection
     
-    // Send authentication message with JWT token
-    socket.send(JSON.stringify({
-      type: 'AUTH',
-      token: token
-    }));
-  });
+    // Set a timeout for authentication
+    authTimeout = setTimeout(() => {
+      if (!isAuthenticated) {
+        console.error('Authentication timeout');
+        socket.close(4000, 'Authentication timeout');
+      }
+    }, AUTH_TIMEOUT);
+  };
 
-  // Listen for messages
-  socket.addEventListener('message', (event) => {
+  // Handle incoming messages
+  const onMessageHandler = (event: MessageEvent) => {
     try {
-      const message = JSON.parse(event.data);
+      const message: WebSocketMessage = JSON.parse(event.data);
+      console.log('Received WebSocket message:', message);
+      
+      // Handle authentication response
+      if (message.type === 'AUTH_SUCCESS' || message.type === 'system') {
+        console.log('WebSocket authentication successful');
+        isAuthenticated = true;
+        if (authTimeout) {
+          clearTimeout(authTimeout);
+          authTimeout = null;
+        }
+      }
+      
+      // Forward all messages to the handler
       onMessage(message);
+      
     } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
+      console.error('Error processing WebSocket message:', error);
+      onMessage({
+        type: 'ERROR',
+        error: 'Invalid message format',
+        payload: { raw: event.data }
+      });
+    }
+  };
+  
+  // Handle connection errors
+  const onError = (error: Event) => {
+    console.error('WebSocket error:', error);
+    if (authTimeout) {
+      clearTimeout(authTimeout);
+      authTimeout = null;
+    }
+    
+    onMessage({
+      type: 'ERROR',
+      error: 'WebSocket connection error',
+      payload: { error: error }
+    });
+  };
+  
+  // Handle connection close
+  const onClose = (event: CloseEvent) => {
+    console.log('WebSocket connection closed:', event.code, event.reason);
+    
+    // Clean up
+    if (authTimeout) {
+      clearTimeout(authTimeout);
+      authTimeout = null;
+    }
+    
+    // Notify about disconnection
+    onMessage({
+      type: 'DISCONNECTED',
+      error: event.reason || 'Connection closed',
+      payload: {
+        code: event.code,
+        wasClean: event.wasClean
+      }
+    });
+    
+    // Attempt to reconnect if not a normal closure and under max attempts
+    if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      reconnectAttempts++;
+      const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
+      
+      console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) in ${delay/1000} seconds...`);
+      
+      setTimeout(() => {
+        console.log('Reconnecting WebSocket...');
+        const newSocket = setupWebSocket(onMessage);
+        // Replace event listeners with new socket's handlers
+        Object.assign(socket, newSocket);
+      }, delay);
+    } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('Max reconnection attempts reached');
+      onMessage({
+        type: 'ERROR',
+        error: 'Connection lost. Please refresh the page to reconnect.',
+        payload: { code: event.code, reason: event.reason }
+      });
+    }
+  };
+  
+  // Set up event listeners
+  socket.addEventListener('open', onOpen);
+  socket.addEventListener('message', onMessageHandler);
+  socket.addEventListener('error', onError);
+  socket.addEventListener('close', onClose);
+  
+  // Send a ping every 30 seconds to keep the connection alive
+  const pingInterval = setInterval(() => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'PING' }));
+    }
+  }, 30000);
+  
+  // Clean up
+  const cleanup = () => {
+    clearInterval(pingInterval);
+    socket.removeEventListener('open', onOpen);
+    socket.removeEventListener('message', onMessageHandler);
+    socket.removeEventListener('error', onError);
+    socket.removeEventListener('close', onClose);
+  };
+  
+  // Return a proxy to handle cleanup
+  return new Proxy(socket, {
+    get(target, prop) {
+      if (prop === 'close') {
+        return function(...args: any[]) {
+          cleanup();
+          return target.close(...args);
+        };
+      }
+      return (target as any)[prop];
     }
   });
-
-  // Handle errors
-  socket.addEventListener('error', (error) => {
-    console.error('WebSocket error:', error);
-  });
-
-  // Handle connection close
-  socket.addEventListener('close', (event) => {
-    console.info('WebSocket disconnected:', event.code, event.reason);
-  });
-
-  return socket;
 };

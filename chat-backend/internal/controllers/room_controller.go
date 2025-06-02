@@ -14,10 +14,14 @@ import (
 
 type RoomController struct {
 	roomService *services.RoomService
+	wsCtrl      models.WSController
 }
 
-func NewRoomController(roomService *services.RoomService) *RoomController {
-	return &RoomController{roomService: roomService}
+func NewRoomController(roomService *services.RoomService, wsCtrl models.WSController) *RoomController {
+	return &RoomController{
+		roomService: roomService,
+		wsCtrl:      wsCtrl,
+	}
 }
 
 type CreateRoomRequest struct {
@@ -238,17 +242,45 @@ func (c *RoomController) AddMember(ctx *gin.Context) {
 		return
 	}
 
+	// Verify room exists and user has permissions
+	if _, err := c.roomService.GetRoom(roomID, userID.(string)); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "room not found or access denied" {
+			status = http.StatusNotFound
+		}
+		ctx.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Add the member
 	updatedRoom, err := c.roomService.AddMember(roomID, userID.(string), req.UserID)
 	if err != nil {
 		status := http.StatusInternalServerError
-		switch err.Error() {
-		case "room not found or you don't have permission to add members":
-			status = http.StatusForbidden
-		case "user is already a member of this room":
+		if err.Error() == "room not found or access denied" {
+			status = http.StatusNotFound
+		} else if err.Error() == "user is already a member of the room" {
 			status = http.StatusConflict
 		}
 		ctx.JSON(status, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Notify all clients in the room about the new member
+	if c.wsCtrl != nil {
+		// Get the updated room with the new member
+		room, err := c.roomService.GetRoom(roomID, userID.(string))
+		if err == nil {
+			// Find the newly added member in the room
+			for _, member := range room.Members {
+				if member.ID == req.UserID {
+					c.wsCtrl.NotifyMemberChange(roomID, req.UserID, "ADDED", map[string]interface{}{
+						"id":          member.ID,
+						"displayName": member.DisplayName,
+					})
+					break
+				}
+			}
+		}
 	}
 
 	ctx.JSON(http.StatusOK, updatedRoom)

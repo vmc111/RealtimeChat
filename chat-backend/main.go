@@ -11,7 +11,10 @@ import (
 	"chat-backend/internal/controllers"
 	"chat-backend/internal/handlers"
 	"chat-backend/internal/middleware"
+	"chat-backend/internal/models"
 	"chat-backend/internal/services"
+	"chat-backend/pkg/types"
+	"chat-backend/pkg/websocket"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -101,14 +104,47 @@ func main() {
 
 	// Initialize services
 	userService := services.NewUserService(usersCollection)
-	roomService := services.NewRoomService(db, userService)
-	messageService := services.NewMessageService(db)
+	
+	// Initialize WebSocket hub
+	wsHub := websocket.NewHub()
+	go wsHub.Run()
 
-	// Initialize handlers and middleware
+	// Initialize controllers
 	authHandler := handlers.NewAuthHandler(usersCollection, jwtSecret)
 	userHandler := handlers.NewUserHandler(usersCollection)
-	roomController := controllers.NewRoomController(roomService)
 	authMiddleware := middleware.AuthMiddleware(jwtSecret)
+	
+	// Create a user service wrapper for WebSocket
+	wsUserService := &models.UserServiceWrapper{
+		GetUserByIDFunc: func(id string) (*types.User, error) {
+			// Convert the internal user model to the shared types.User
+			user, err := userService.GetUserByID(id)
+			if err != nil {
+				return nil, err
+			}
+			return &types.User{
+				ID:        user.ID,
+				Username:  user.Username,
+				Email:     user.Email,
+				PhotoURL:  user.PhotoURL,
+				CreatedAt: user.CreatedAt,
+				UpdatedAt: user.UpdatedAt,
+			}, nil
+		},
+	}
+	
+	// Initialize WebSocket handler
+	wsHandler := websocket.NewWSHandler(wsHub, wsUserService)
+	
+	// Initialize WebSocket controller
+	wsController := controllers.NewWSController(wsHandler)
+	
+	// Initialize room and message services with WebSocket controller
+	roomService := services.NewRoomService(db, userService, wsController)
+	messageService := services.NewMessageService(db)
+	
+	// Initialize controllers
+	roomController := controllers.NewRoomController(roomService, wsController)
 	messageController := controllers.NewMessageController(messageService)
 
 	// Create router
@@ -127,6 +163,11 @@ func main() {
 		authGroup.POST("/signup", authHandler.SignUp)
 		authGroup.POST("/login", authHandler.Login)
 	}
+
+	// WebSocket endpoint (no auth middleware as it handles auth differently)
+	router.GET("/ws", func(c *gin.Context) {
+		wsController.HandleWebSocket(c)
+	})
 
 	// Protected routes
 	api := router.Group("/api")

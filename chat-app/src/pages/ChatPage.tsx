@@ -30,10 +30,12 @@ const ChatPage = () => {
         // Redirect back to chat rooms if there's an error joining the room
         navigate('/chats');
       });
+
     }
 
     return () => {
       chatStore.setCurrentUser(null);
+      chatStore.closeWebSocket();
     }
   }, [roomId]);
 

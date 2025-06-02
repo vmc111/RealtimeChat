@@ -7,9 +7,10 @@ import (
 )
 
 type Member struct {
-	ID          string `bson:"id" json:"id"`
-	DisplayName string `bson:"displayName" json:"displayName"`
-	PhotoURL    string `bson:"photoURL,omitempty" json:"photoURL,omitempty"`
+	ID          string    `bson:"id" json:"id"`
+	DisplayName string    `bson:"displayName" json:"displayName"`
+	PhotoURL    string    `bson:"photoURL,omitempty" json:"photoURL,omitempty"`
+	JoinedAt    time.Time `bson:"joinedAt" json:"joinedAt"`
 }
 
 type Room struct {
