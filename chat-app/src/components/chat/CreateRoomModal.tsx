@@ -1,76 +1,81 @@
-import { useState } from 'react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import { observer } from 'mobx-react-lite';
+import { XMarkIcon } from '@heroicons/react/24/outline'
+
+import { useState } from 'react'
+
+import { observer } from 'mobx-react-lite'
 
 interface CreateRoomModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreateRoom: (name: string, isPrivate: boolean) => Promise<{ id: string; name: string; isPrivate: boolean } | null>;
+  isOpen: boolean
+  onClose: () => void
+  onCreateRoom: (
+    name: string,
+    isPrivate: boolean
+  ) => Promise<{ id: string; name: string; isPrivate: boolean } | null>
 }
 
 const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps) => {
-  const [roomName, setRoomName] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [roomName, setRoomName] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const trimmedName = roomName.trim();
+    e.preventDefault()
+
+    const trimmedName = roomName.trim()
     if (!trimmedName) {
-      setError('Room name is required');
-      return;
+      setError('Room name is required')
+      return
     }
 
     if (trimmedName.length > 50) {
-      setError('Room name must be less than 50 characters');
-      return;
+      setError('Room name must be less than 50 characters')
+      return
     }
 
     try {
-      setIsSubmitting(true);
-      setError('');
-      
+      setIsSubmitting(true)
+      setError('')
+
       // Call the parent's onCreateRoom function
-      const newRoom = await onCreateRoom(trimmedName, isPrivate);
-      
+      const newRoom = await onCreateRoom(trimmedName, isPrivate)
+
       if (newRoom) {
         // Reset form on success
-        setRoomName('');
-        setIsPrivate(false);
+        setRoomName('')
+        setIsPrivate(false)
         // Close the modal after a short delay to show success state
         setTimeout(() => {
-          onClose();
-        }, 500);
+          onClose()
+        }, 500)
       }
     } catch (err) {
-      console.error('Error in CreateRoomModal:', err);
-      const error = err as Error;
+      console.error('Error in CreateRoomModal:', err)
+      const error = err as Error
       setError(
-        error.message.includes('permission') 
-          ? 'You do not have permission to create rooms' 
+        error.message.includes('permission')
+          ? 'You do not have permission to create rooms'
           : error.message.includes('network')
-          ? 'Network error. Please check your connection.'
-          : 'Failed to create room. Please try again.'
-      );
+            ? 'Network error. Please check your connection.'
+            : 'Failed to create room. Please try again.'
+      )
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const handleClose = () => {
-    setRoomName('');
-    setIsPrivate(false);
-    setError('');
-    onClose();
-  };
+    setRoomName('')
+    setIsPrivate(false)
+    setError('')
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="z-full flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+      <div className="z-full flex min-h-screen items-end justify-center px-4 pb-20 pt-4 text-center sm:block sm:p-0">
         {/* Background overlay */}
         <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={handleClose}>
           <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -87,8 +92,8 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
           aria-labelledby="modal-headline"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="absolute top-0 right-0 pt-4 pr-4">
+          <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+            <div className="absolute right-0 top-0 pr-4 pt-4">
               <button
                 type="button"
                 className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
@@ -100,14 +105,14 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
             </div>
 
             <div className="sm:flex sm:items-start">
-              <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+              <div className="mt-3 w-full text-center sm:ml-4 sm:mt-0 sm:text-left">
                 <h3 className="text-lg font-medium leading-6 text-gray-900" id="modal-headline">
                   Create New Room
                 </h3>
                 <div className="mt-4">
                   <form onSubmit={handleSubmit}>
                     {error && (
-                      <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4">
+                      <div className="mb-4 border-l-4 border-red-400 bg-red-50 p-4">
                         <div className="flex">
                           <div className="ml-3">
                             <p className="text-sm text-red-700">{error}</p>
@@ -123,7 +128,7 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
                       <input
                         type="text"
                         id="roomName"
-                        className="px-6 py-3 overflow-auto mt-1 block w-full rounded-md border-primary-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        className="mt-1 block w-full overflow-auto rounded-md border-primary-300 px-6 py-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                         value={roomName}
                         onChange={(e) => setRoomName(e.target.value)}
                         placeholder="Enter room name"
@@ -131,7 +136,7 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
                       />
                     </div>
 
-                    <div className="flex items-center mb-6">
+                    <div className="mb-6 flex items-center">
                       <input
                         id="isPrivate"
                         type="checkbox"
@@ -159,7 +164,7 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
             </button>
             <button
               type="button"
-              className="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+              className="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:ml-3 sm:mt-0 sm:w-auto sm:text-sm"
               onClick={handleClose}
               disabled={isSubmitting}
             >
@@ -169,7 +174,7 @@ const CreateRoomModal = ({ isOpen, onClose, onCreateRoom }: CreateRoomModalProps
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default observer(CreateRoomModal);
+export default observer(CreateRoomModal)

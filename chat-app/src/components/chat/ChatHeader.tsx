@@ -1,31 +1,32 @@
-import { ActionButton } from '@adobe/react-spectrum';
-import { observer } from 'mobx-react-lite';
-import { FaArrowLeft, FaPlus } from 'react-icons/fa';
-import { FiUsers } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom';
-import type RoomModel from '../../store/models/RoomModel';
+import { ActionButton } from '@adobe/react-spectrum'
+
+import { FaArrowLeft, FaPlus } from 'react-icons/fa'
+import { FiUsers } from 'react-icons/fi'
+import { useNavigate } from 'react-router-dom'
+
+import { observer } from 'mobx-react-lite'
+
+import type RoomModel from '../../store/models/RoomModel'
 
 interface ChatHeaderProps {
-  room: RoomModel;
-  onAddMember?: () => void;
+  room: RoomModel
+  onAddMember?: () => void
 }
 
-
 const ChatHeader = ({ room, onAddMember }: ChatHeaderProps) => {
-    const navigate = useNavigate();
-  
+  const navigate = useNavigate()
 
   const handleBackToRooms = () => {
-    navigate('/chats');
-  };
+    navigate('/chats')
+  }
 
   const renderRoomNameAndMembers = (): React.ReactElement => (
-    <div className="bg-white p-4 grow flex items-center justify-between overflow-hidden">
-      <h2 className="text-lg font-semibold grow truncate" title={room.name}>
+    <div className="flex grow items-center justify-between overflow-hidden bg-white p-4">
+      <h2 className="grow truncate text-lg font-semibold" title={room.name}>
         {room.name}
       </h2>
       <div className="flex items-center gap-4">
-        <ActionButton 
+        <ActionButton
           onPress={onAddMember}
           isQuiet
           UNSAFE_style={{
@@ -53,24 +54,23 @@ const ChatHeader = ({ room, onAddMember }: ChatHeaderProps) => {
       </div>
     </div>
   )
-    
-  
-  return (
-         <header className='flex items-center w-full bg-white shadow-sm border-b border-gray-300'>
-           <div className="max-w-7xl px-4 sm:px-6 lg:px-8">
-             <div className="flex items-center h-16">
-               <ActionButton
-                 UNSAFE_className="!cursor-pointer !border-none !outline-none"
-                 onPress={handleBackToRooms}
-                 >
-                 <FaArrowLeft className="h-5 w-5 mr-2" />
-                 Back to Rooms
-               </ActionButton>
-             </div>
-           </div>
-           {renderRoomNameAndMembers()}
-         </header>
-  );
-};
 
-export default observer(ChatHeader);
+  return (
+    <header className="flex w-full items-center border-b border-gray-300 bg-white shadow-sm">
+      <div className="max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center">
+          <ActionButton
+            UNSAFE_className="!cursor-pointer !border-none !outline-none"
+            onPress={handleBackToRooms}
+          >
+            <FaArrowLeft className="mr-2 h-5 w-5" />
+            Back to Rooms
+          </ActionButton>
+        </div>
+      </div>
+      {renderRoomNameAndMembers()}
+    </header>
+  )
+}
+
+export default observer(ChatHeader)

@@ -1,42 +1,42 @@
-import { useEffect } from 'react';
+import { useEffect } from 'react'
 
-import { api } from '../services/api';
-import { useStore } from '../store';
+import { api } from '../services/api'
+import { useStore } from '../store'
 
 export const useAuthCheck = () => {
-  const { authStore } = useStore();
+  const { authStore } = useStore()
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-      const userId = localStorage.getItem('userId');
-      
+      const token = localStorage.getItem('token')
+      const userId = localStorage.getItem('userId')
+
       if (!token || !userId) {
-        return  authStore.signOut()
+        return authStore.signOut()
       }
 
       try {
         // Set the token first
-        authStore.setToken(token);
-        
+        authStore.setToken(token)
+
         // Then fetch the user data
-        const user = await api.getUser(userId);
+        const user = await api.getUser(userId)
         if (user) {
           authStore.setUser({
             ...user,
-          });
-          authStore.setStatus('authenticated');
+          })
+          authStore.setStatus('authenticated')
         } else {
-          authStore.signOut();
+          authStore.signOut()
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
-        authStore.signOut();
-      } 
-    };
+        console.error('Auth check failed:', error)
+        authStore.signOut()
+      }
+    }
 
-    checkAuth();
-  }, [authStore]);
+    checkAuth()
+  }, [authStore])
 
-  return { isLoading: authStore.status === 'loading' };
-};
+  return { isLoading: authStore.status === 'loading' }
+}

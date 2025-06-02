@@ -1,113 +1,119 @@
-import cn from 'classnames';
-import { format, isThisWeek, isToday, isYesterday, startOfHour } from 'date-fns';
-import { observer } from 'mobx-react-lite';
-import { useEffect } from 'react';
-import { useStore } from '../../store';
-import type { Message, RoomMemberType } from '../../types';
-import { Spinner } from '../ui/Spinner';
+import { useEffect } from 'react'
+
+import cn from 'classnames'
+import { format, isThisWeek, isToday, isYesterday, startOfHour } from 'date-fns'
+import { observer } from 'mobx-react-lite'
+
+import { useStore } from '../../store'
+import type { Message, RoomMemberType } from '../../types'
+import { Spinner } from '../ui/Spinner'
 
 interface ProcessedMessage extends Omit<Message, 'createdAt'> {
-  createdAt: Date;
-  userPhotoURL?: string;
-  userDisplayName: string;
-  sending?: boolean;
+  createdAt: Date
+  userPhotoURL?: string
+  userDisplayName: string
+  sending?: boolean
 }
 
 interface MessageListProps {
-  roomId: string;
-  className?: string;
+  roomId: string
+  className?: string
 }
 
 const formatMessageDate = (date: Date): string => {
   if (isToday(date)) {
-    return 'Today';
+    return 'Today'
   } else if (isYesterday(date)) {
-    return 'Yesterday';
+    return 'Yesterday'
   } else if (isThisWeek(date, { weekStartsOn: 1 })) {
-    return format(date, 'EEEE'); // Day of the week
+    return format(date, 'EEEE') // Day of the week
   } else {
-    return format(date, 'MMM d, yyyy');
+    return format(date, 'MMM d, yyyy')
   }
-};
+}
 
 // Format time for hour groups (e.g., "2:00 PM")
 const formatHourGroup = (date: Date): string => {
-  return format(date, 'h:mm a');
-};
+  return format(date, 'h:mm a')
+}
 
 const MessageList: React.FC<MessageListProps> = ({ roomId, className }) => {
-  const { chatStore } = useStore();
-  const { messages, currentUser } = chatStore;
-  const currentUserId = currentUser?.id;
+  const { chatStore } = useStore()
+  const { messages, currentUser } = chatStore
+  const currentUserId = currentUser?.id
 
   useEffect(() => {
-    chatStore.loadMessages(roomId);
+    chatStore.loadMessages(roomId)
 
     return () => {
-      chatStore.clearMessages();
+      chatStore.clearMessages()
     }
-  }, [roomId]);
+  }, [roomId])
 
   const getMemberWithId = (memberId: string): RoomMemberType | undefined => {
-    return chatStore.currentRoom?.members.find((member) => member.id === memberId);
+    return chatStore.currentRoom?.members.find((member) => member.id === memberId)
   }
 
-
-  
   const processedMessages = messages.map((message) => {
-        // Ensure required properties exist
-        const messageSender = getMemberWithId(message.userId)
-        const userDisplayName = messageSender ? messageSender.displayName : 'User';
-        const userPhotoURL = messageSender ? messageSender.photoURL : `https://ui-avatars.com/api/?name=${encodeURIComponent(userDisplayName)}&background=random`;
-        
-        return {
-          ...message,
-          createdAt: new Date(message.createdAt),
-          userPhotoURL,
-          userDisplayName,
-          sending: (message as any).sending || false,
-        };
-      })  
-   
+    // Ensure required properties exist
+    const messageSender = getMemberWithId(message.userId)
+    const userDisplayName = messageSender ? messageSender.displayName : 'User'
+    const userPhotoURL = messageSender
+      ? messageSender.photoURL
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(userDisplayName)}&background=random`
+
+    return {
+      ...message,
+      createdAt: new Date(message.createdAt),
+      userPhotoURL,
+      userDisplayName,
+      sending: (message as any).sending || false,
+    }
+  })
 
   // Sort messages by createdAt in ascending order (oldest first)
   const sortedMessages = [...processedMessages].sort(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
   )
 
-    // Scroll to bottom when messages change
-    useEffect(() => {
-      if(!sortedMessages.length) return
-      const element = document.getElementById(sortedMessages[sortedMessages.length - 1].id);
-      element?.scrollIntoView({ behavior: 'smooth', inline: 'start' });
-    }, [sortedMessages.length]);
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (!sortedMessages.length) return
+    const element = document.getElementById(sortedMessages[sortedMessages.length - 1].id)
+    element?.scrollIntoView({ behavior: 'smooth', inline: 'start' })
+  }, [sortedMessages.length])
 
   // Group messages by date and then by hour (oldest first)
-  const groupedMessages = sortedMessages.reduce((acc: Record<string, Record<string, ProcessedMessage[]>>, message) => {
-    const messageDate = message.createdAt;
-    const dateKey = format(messageDate, 'yyyy-MM-dd');
-    const hourKey = format(startOfHour(messageDate), 'yyyy-MM-dd-HH');
-    
-    if (!acc[dateKey]) {
-      acc[dateKey] = {};
-    }
-    
-    if (!acc[dateKey][hourKey]) {
-      acc[dateKey][hourKey] = [];
-    }
-    
-    acc[dateKey][hourKey].push(message);
-    return acc;
-  }, {})
+  const groupedMessages = sortedMessages.reduce(
+    (acc: Record<string, Record<string, ProcessedMessage[]>>, message) => {
+      const messageDate = message.createdAt
+      const dateKey = format(messageDate, 'yyyy-MM-dd')
+      const hourKey = format(startOfHour(messageDate), 'yyyy-MM-dd-HH')
+
+      if (!acc[dateKey]) {
+        acc[dateKey] = {}
+      }
+
+      if (!acc[dateKey][hourKey]) {
+        acc[dateKey][hourKey] = []
+      }
+
+      acc[dateKey][hourKey].push(message)
+      return acc
+    },
+    {}
+  )
 
   if (chatStore.loading) {
-    return <Spinner className="grow w-full h-full" size="lg" />;
+    return <Spinner className="h-full w-full grow" size="lg" />
   }
 
   if (!sortedMessages.length) {
     return (
-      <div className={`flex-1 h-full flex flex-col items-center justify-center text-gray-500 p-4 text-center ${className}`}>
-        <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-full mb-4">
+      <div
+        className={`flex h-full flex-1 flex-col items-center justify-center p-4 text-center text-gray-500 ${className}`}
+      >
+        <div className="mb-4 rounded-full bg-gray-100 p-6 dark:bg-gray-800">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-10 w-10 text-gray-400"
@@ -128,37 +134,40 @@ const MessageList: React.FC<MessageListProps> = ({ roomId, className }) => {
           Send a message to start the conversation!
         </p>
       </div>
-    );
+    )
   }
 
-
   return (
-    <div className={`flex-1 w-full overflow-hidden overflow-y-auto p-4 space-y-6 ${className || ''}`}>
+    <div
+      className={`w-full flex-1 space-y-6 overflow-hidden overflow-y-auto p-4 ${className || ''}`}
+    >
       {Object.entries(groupedMessages).map(([date, hours]) => {
-        const dateObj = new Date(date);
-        const hourGroups = Object.entries(hours);
-        
+        const dateObj = new Date(date)
+        const hourGroups = Object.entries(hours)
+
         return (
-          <div key={date} className="space-y-2 flex flex-col grow overflow-hidden w-full">
+          <div key={date} className="flex w-full grow flex-col space-y-2 overflow-hidden">
             {/* Date separator */}
-            <div className="relative flex items-center justify-center my-4 px-4 py-2">
+            <div className="relative my-4 flex items-center justify-center px-4 py-2">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
               </div>
-              <div className="relative px-3 bg-white dark:bg-gray-900 text-sm text-gray-500 dark:text-gray-400 rounded-full border border-gray-200 dark:border-gray-700">
+              <div className="relative rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                 {formatMessageDate(dateObj)}
               </div>
             </div>
 
             {/* Hour groups */}
             {hourGroups.map(([hourKey, hourMessages]) => {
-              const hourDate = new Date(hourKey.replace(/(\d{4})-(\d{2})-(\d{2})-(\d{2})/, '$1-$2-$3T$4:00:00'));
-              
+              const hourDate = new Date(
+                hourKey.replace(/(\d{4})-(\d{2})-(\d{2})-(\d{2})/, '$1-$2-$3T$4:00:00')
+              )
+
               return (
                 <div key={hourKey} className="space-y-1">
                   {/* Hour separator */}
-                  <div className="flex items-center justify-center my-2">
-                    <div className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                  <div className="my-2 flex items-center justify-center">
+                    <div className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-400 dark:bg-gray-800 dark:text-gray-500">
                       {formatHourGroup(hourDate)}
                     </div>
                   </div>
@@ -166,29 +175,30 @@ const MessageList: React.FC<MessageListProps> = ({ roomId, className }) => {
                   {/* Messages for this hour */}
                   <div className="space-y-1">
                     {hourMessages.map((message, index) => {
-                      const isCurrentUser = message.userId === currentUserId;
-                      const messageDate = message.createdAt;
-                      const showAvatar = !isCurrentUser && 
-                        (index === 0 || hourMessages[index - 1].userId !== message.userId);
-                      
+                      const isCurrentUser = message.userId === currentUserId
+                      const messageDate = message.createdAt
+                      const showAvatar =
+                        !isCurrentUser &&
+                        (index === 0 || hourMessages[index - 1].userId !== message.userId)
+
                       return (
                         <div
                           key={message.id}
                           id={message.id}
                           className={cn(
-                            'flex group grow',
+                            'group flex grow',
                             isCurrentUser ? 'justify-end' : 'justify-start'
                           )}
                         >
                           {/* Avatar (only for received messages and when needed) */}
                           {!isCurrentUser && showAvatar && (
-                            <div className="flex-shrink-0 mr-2 self-end">
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                            <div className="mr-2 flex-shrink-0 self-end">
+                              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                                 {message.userPhotoURL ? (
-                                  <img 
-                                    src={message.userPhotoURL} 
-                                    alt={message.userDisplayName} 
-                                    className="w-full h-full object-cover"
+                                  <img
+                                    src={message.userPhotoURL}
+                                    alt={message.userDisplayName}
+                                    className="h-full w-full object-cover"
                                   />
                                 ) : (
                                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -202,49 +212,56 @@ const MessageList: React.FC<MessageListProps> = ({ roomId, className }) => {
                           {/* Message bubble */}
                           <div
                             className={cn(
-                              'relative max-w-[80%] lg:max-w-[60%] rounded-2xl px-4 py-2',
+                              'relative max-w-[80%] rounded-2xl px-4 py-2 lg:max-w-[60%]',
                               isCurrentUser
-                                ? 'bg-indigo-600 text-white rounded-br-none'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none',
+                                ? 'rounded-br-none bg-indigo-600 text-white'
+                                : 'rounded-bl-none bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white'
                             )}
                           >
                             {/* Sender name (for received messages) */}
                             {!isCurrentUser && showAvatar && (
-                              <div className="font-medium text-xs text-indigo-600 dark:text-indigo-400 mb-1">
+                              <div className="mb-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
                                 {message.userDisplayName}
                               </div>
                             )}
 
                             {/* Message content */}
-                            <div className={cn("text-sm break-words", isCurrentUser ? 'text-right' : 'text-left')}>{message.content}</div>
+                            <div
+                              className={cn(
+                                'break-words text-sm',
+                                isCurrentUser ? 'text-right' : 'text-left'
+                              )}
+                            >
+                              {message.content}
+                            </div>
 
                             {/* Message time */}
                             <div
                               className={cn(
-                                'text-xs mt-1 flex justify-end items-center space-x-1',
-                                isCurrentUser ? 'text-indigo-200' : 'text-gray-500 dark:text-gray-400'
+                                'mt-1 flex items-center justify-end space-x-1 text-xs',
+                                isCurrentUser
+                                  ? 'text-indigo-200'
+                                  : 'text-gray-500 dark:text-gray-400'
                               )}
                             >
                               <span>{format(messageDate, 'h:mm a')}</span>
                               {isCurrentUser && (
-                                <span className="text-xs">
-                                  {message.sending ? '↻' : '✓'}
-                                </span>
+                                <span className="text-xs">{message.sending ? '↻' : '✓'}</span>
                               )}
                             </div>
                           </div>
                         </div>
-                      );
+                      )
                     })}
                   </div>
                 </div>
-              );
+              )
             })}
           </div>
-        );
+        )
       })}
     </div>
-  );
-};
+  )
+}
 
-export default observer(MessageList);
+export default observer(MessageList)

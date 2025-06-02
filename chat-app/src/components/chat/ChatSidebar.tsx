@@ -1,20 +1,22 @@
-import React from 'react';
-import type { Room } from '../../types';
-import { motion } from 'framer-motion';
-import { FaPlus } from 'react-icons/fa';
-import { observer } from 'mobx-react-lite';
+import React from 'react'
+import { FaPlus } from 'react-icons/fa'
+
+import { motion } from 'framer-motion'
+import { observer } from 'mobx-react-lite'
+
+import type { Room } from '../../types'
 
 interface ChatSidebarProps {
-  rooms: Room[];
-  currentRoom: Room | null;
+  rooms: Room[]
+  currentRoom: Room | null
   user: {
-    displayName: string | null;
-    email: string | null;
-    photoURL: string | null;
-  };
-  onSelectRoom: (room: Room) => void;
-  onCreateRoom: () => void;
-  onSignOut: () => void;
+    displayName: string | null
+    email: string | null
+    photoURL: string | null
+  }
+  onSelectRoom: (room: Room) => void
+  onCreateRoom: () => void
+  onSignOut: () => void
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -26,14 +28,14 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onSignOut,
 }) => {
   return (
-    <div className="w-64 h-full bg-white border-r border-gray-200 flex flex-col">
-      <div className="p-4 border-b border-gray-200">
+    <div className="flex h-full w-64 flex-col border-r border-gray-200 bg-white">
+      <div className="border-b border-gray-200 p-4">
         <h2 className="text-lg font-semibold">Chat Rooms</h2>
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onCreateRoom}
-          className="mt-2 w-full bg-indigo-600 text-white py-2 px-3 rounded-md text-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center"
+          className="mt-2 flex w-full items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
           <FaPlus className="mr-2" />
           Create Room
@@ -54,7 +56,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               <div className="flex items-center">
                 <span className="truncate">{room.name}</span>
                 {room.isPrivate && (
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                  <span className="ml-2 inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-800">
                     Private
                   </span>
                 )}
@@ -63,7 +65,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           ))}
         </div>
       </div>
-      <div className="p-4 border-t border-gray-200">
+      <div className="border-t border-gray-200 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             {user.photoURL ? (
@@ -73,8 +75,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 className="h-8 w-8 rounded-full"
               />
             ) : (
-              <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                <span className="text-indigo-600 font-medium">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100">
+                <span className="font-medium text-indigo-600">
                   {user.displayName?.charAt(0) || user.email?.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -97,7 +99,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default observer(ChatSidebar);
+export default observer(ChatSidebar)

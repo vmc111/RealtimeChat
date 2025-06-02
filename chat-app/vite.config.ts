@@ -1,13 +1,14 @@
-import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
+import react from '@vitejs/plugin-react'
+
+import { defineConfig, loadEnv } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  
+  const env = loadEnv(mode, process.cwd(), '')
+
   // Use relative paths for better compatibility with client-side routing
-  const base = '/';
-  
+  const base = '/'
+
   return {
     base,
     plugins: [react()],
@@ -18,7 +19,7 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: true, // Enable WebSocket proxy
-        }
+        },
       },
     },
     build: {
@@ -30,5 +31,5 @@ export default defineConfig(({ mode }) => {
       // Expose env variables to the client
       'process.env': process.env,
     },
-  };
-});
+  }
+})

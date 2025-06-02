@@ -1,10 +1,10 @@
 .Ecg7PG_spectrum-Dialog-grid {
-    grid-template-rows: auto 1fr auto;
-    overflow: hidden;
-    width: 400px;
-    max-width: 90%;
-    margin: 0 auto;
-    padding: 16px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  width: 400px;
+  max-width: 90%;
+  margin: 0 auto;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }

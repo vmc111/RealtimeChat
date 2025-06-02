@@ -1,28 +1,30 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { observer } from 'mobx-react-lite';
-import { useStore } from '../store';
-import { FaUser, FaEnvelope, FaSave, FaSpinner } from 'react-icons/fa';
+import { useEffect, useState } from 'react'
+import { FaEnvelope, FaSave, FaSpinner, FaUser } from 'react-icons/fa'
+import { useNavigate } from 'react-router-dom'
+
+import { observer } from 'mobx-react-lite'
+
+import { useStore } from '../store'
 
 const ProfilePage = () => {
-  const { authStore } = useStore();
-  const navigate = useNavigate();
-  
+  const { authStore } = useStore()
+  const navigate = useNavigate()
+
   const [formData, setFormData] = useState({
     username: '',
     displayName: '',
     email: '',
     avatar: '',
-  });
-  
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  })
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
     if (!authStore.user) {
-      navigate('/login');
-      return;
+      navigate('/login')
+      return
     }
 
     // Initialize form with current user data
@@ -31,70 +33,68 @@ const ProfilePage = () => {
       displayName: authStore.user.displayName || '',
       email: authStore.user.email || '',
       avatar: authStore.user.avatar || '',
-    });
-  }, [authStore.user, navigate]);
+    })
+  }, [authStore.user, navigate])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
+    const { name, value } = e.target
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
-    }));
-  };
+    }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     if (!authStore.user) {
-      setError('User not authenticated');
-      return;
+      setError('User not authenticated')
+      return
     }
 
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
+    setLoading(true)
+    setError(null)
+    setSuccess(false)
 
     try {
-      const updates: { username?: string; displayName?: string; avatar?: string } = {};
-      
+      const updates: { username?: string; displayName?: string; avatar?: string } = {}
+
       if (formData.username !== authStore.user.username) {
-        updates.username = formData.username;
+        updates.username = formData.username
       }
-      
+
       if (formData.displayName !== authStore.user.displayName) {
-        updates.displayName = formData.displayName;
+        updates.displayName = formData.displayName
       }
-      
+
       if (formData.avatar !== authStore.user.avatar) {
-        updates.avatar = formData.avatar;
+        updates.avatar = formData.avatar
       }
 
       if (Object.keys(updates).length > 0) {
-        await authStore.updateProfile(updates);
-        setSuccess(true);
+        await authStore.updateProfile(updates)
+        setSuccess(true)
       }
     } catch (error) {
-      console.error('Failed to update profile:', error);
-      setError(error instanceof Error ? error.message : 'Failed to update profile');
+      console.error('Failed to update profile:', error)
+      setError(error instanceof Error ? error.message : 'Failed to update profile')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   if (!authStore.user) {
-    return null; // Will redirect due to useEffect
+    return null // Will redirect due to useEffect
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl">
+    <div className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-md overflow-hidden rounded-xl bg-white shadow-md md:max-w-2xl">
         <div className="p-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Update your account information
-              </p>
+              <p className="mt-1 text-sm text-gray-600">Update your account information</p>
             </div>
             {authStore.user.avatar ? (
               <img
@@ -103,20 +103,16 @@ const ProfilePage = () => {
                 alt={authStore.user.displayName || authStore.user.username}
               />
             ) : (
-              <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100">
                 <FaUser className="h-8 w-8 text-indigo-500" />
               </div>
             )}
           </div>
 
-          {error && (
-            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md">
-              {error}
-            </div>
-          )}
+          {error && <div className="mt-4 rounded-md bg-red-50 p-3 text-red-700">{error}</div>}
 
           {success && (
-            <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-md">
+            <div className="mt-4 rounded-md bg-green-50 p-3 text-green-700">
               Profile updated successfully!
             </div>
           )}
@@ -160,7 +156,7 @@ const ProfilePage = () => {
                 Email
               </label>
               <div className="mt-1 flex rounded-md shadow-sm">
-                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                <span className="inline-flex items-center rounded-l-md border border-r-0 border-gray-300 bg-gray-50 px-3 text-gray-500 sm:text-sm">
                   <FaEnvelope className="h-4 w-4" />
                 </span>
                 <input
@@ -169,12 +165,10 @@ const ProfilePage = () => {
                   name="email"
                   disabled
                   value={formData.email}
-                  className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-100"
+                  className="block w-full min-w-0 flex-1 rounded-none rounded-r-md border-gray-300 bg-gray-100 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Email cannot be changed
-              </p>
+              <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
             </div>
 
             <div>
@@ -192,20 +186,18 @@ const ProfilePage = () => {
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Enter a URL to your profile picture
-              </p>
+              <p className="mt-1 text-xs text-gray-500">Enter a URL to your profile picture</p>
             </div>
 
             <div className="pt-4">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? (
                   <>
-                    <FaSpinner className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                    <FaSpinner className="-ml-1 mr-2 h-4 w-4 animate-spin" />
                     Saving...
                   </>
                 ) : (
@@ -220,7 +212,7 @@ const ProfilePage = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default observer(ProfilePage);
+export default observer(ProfilePage)
