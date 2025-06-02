@@ -7,8 +7,13 @@ export default defineConfig(({ mode }) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '');
 
+  const isProduction = mode === 'production';
+  const base = isProduction 
+    ? 'https://realtime-chat-jkp3-git-main-vmc111s-projects.vercel.app' 
+    : '/';
+  
   return {
-    base: '/',
+    base,
     plugins: [react()],
     server: {
       proxy: {
