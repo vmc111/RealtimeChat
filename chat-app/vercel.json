@@ -20,7 +20,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/chat-app/index.html"
+      "destination": "/index.html"
     }
   ]
 }
