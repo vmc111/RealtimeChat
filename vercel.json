@@ -22,5 +22,6 @@
       "src": "^/(?!api/).*$",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "rewrites": [ { "source": "/(.*)", "destination": "/chat-app/index.html" } ]
 }
