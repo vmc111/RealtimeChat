@@ -1,6 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  safelist: [
+    // Add any dynamic classes that might be used in your components
+  ],
   theme: {
     extend: {
       colors: {

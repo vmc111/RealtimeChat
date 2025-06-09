@@ -12,6 +12,11 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [react()],
+    css: {
+      postcss: {
+        plugins: [require('tailwindcss'), require('autoprefixer')],
+      },
+    },
     server: {
       proxy: {
         '/api': {
@@ -26,6 +31,13 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       assetsDir: 'assets',
       sourcemap: mode !== 'production',
+      cssCodeSplit: true,
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: mode === 'production',
+        },
+      },
     },
     define: {
       // Expose env variables to the client
