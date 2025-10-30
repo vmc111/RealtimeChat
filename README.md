@@ -1,54 +1,41 @@
-RealtimeChat
-RealtimeChat is a full-stack real-time chat application built with a modern TypeScript-based frontend and Go-powered backend. Experience seamless, instant messaging with a clean and responsive UI.
+# RealtimeChat
 
-Demo
-Try the live version: realtime-chat-jkp3.vercel.app​
+**RealtimeChat** is a full-stack real-time chat application with a modern TypeScript frontend and Go backend for instant messaging and scalable performance.
 
-Features
-Real-time messaging: Instant communication between users.
+## Demo
 
-Modern stack: TypeScript frontend, Go backend.
+Try it live: [realtime-chat-jkp3.vercel.app](https://realtime-chat-jkp3.vercel.app/)
 
-Responsive design: Usable on desktop and mobile.
+## Features
 
-Vite-powered frontend: Fast development, hot reloads.
+- **Real-time messaging** between users
+- **TypeScript + Vite + React** frontend
+- **Go API server** for backend
+- **Responsive design** for desktop & mobile
+- **Vercel deployment** demo
 
-API server with Go: High performance and concurrency.
+## Project Structure
 
-Project Structure
-chat-app/ – Frontend codebase (TypeScript, Vite, React)
+- `chat-app/` – Frontend (TypeScript, Vite)
+- `chat-backend/` – Backend (Go API)
+- `.vscode/` – Editor settings, Prettier config
 
-chat-backend/ – Backend codebase (Go API server)
+## Installation
 
-.vscode/ – Editor settings and Prettier config
+### Prerequisites
 
-yarn.lock – Frontend dependencies lock file
+- Node.js & Yarn (for frontend)
+- Go (for backend)
 
-Installation & Running Locally
-Prerequisites
-Node.js and Yarn (for frontend)
+### Backend
 
-Go (for backend)
-
-1. Clone the Repository
-bash
-git clone https://github.com/vmc111/RealtimeChat.git
-cd RealtimeChat
-2. Setup Backend
-bash
 cd chat-backend
 go build
-./chat-backend  # or the appropriate binary name
-Configure environment variables if needed (database URL, port, etc.).
+./chat-backend
 
-3. Setup Frontend
-bash
+
+### Frontend
+
 cd chat-app
 yarn install
 yarn dev
-Access the app via http://localhost:3000 (default Vite setting).
-
-Configuration
-Modify backend /chat-backend config files for server, DB, and chat options.
-
-Update frontend /chat-app .env for API endpoint.
